@@ -21,3 +21,5 @@ app
 .idea
 .vscode
 
+# env files
+.env
