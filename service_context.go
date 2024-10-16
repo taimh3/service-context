@@ -15,6 +15,12 @@ const (
 	PrdEnv = "prd"
 )
 
+// Component is an interface that must be implemented by any component that is to be used in the service context.
+// The ID method should return a unique string that identifies the component.
+// The InitFlags method is called before the flags are parsed.
+// The Activate method is called when the service context is loaded.
+// The Stop method is called when the service context is stopped.
+// Important, workflow: InitFlags -> Activate -> Stop
 type Component interface {
 	ID() string
 	InitFlags()
