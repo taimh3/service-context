@@ -3,15 +3,17 @@ package main
 import (
 	"context"
 	"fmt"
-	"github.com/gin-gonic/gin"
-	sctx "github.com/taimaifika/service-context"
-	"github.com/taimaifika/service-context/component/ginc"
 	"log"
 	"net/http"
 	"os"
 	"os/signal"
 	"syscall"
 	"time"
+
+	"github.com/gin-gonic/gin"
+	sctx "github.com/taimaifika/service-context"
+	"github.com/taimaifika/service-context/component/ginc"
+	"github.com/taimaifika/service-context/component/ginc/middleware"
 )
 
 type GINComponent interface {
@@ -34,7 +36,11 @@ func main() {
 	comp := serviceCtx.MustGet(compId).(GINComponent)
 
 	router := comp.GetRouter()
-	router.Use(gin.Recovery(), gin.Logger())
+	router.Use(
+		gin.Logger(),
+		middleware.AllowCORS(),
+		gin.Recovery(),
+	)
 
 	// Demo serve a handler with service-context
 	router.GET("/demo", demoHdl(serviceCtx))
