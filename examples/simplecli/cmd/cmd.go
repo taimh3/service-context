@@ -2,7 +2,6 @@ package cmd
 
 import (
 	"fmt"
-	"log"
 	"os"
 
 	"github.com/gin-gonic/gin"
@@ -23,27 +22,6 @@ type GINComponent interface {
 	GetRouter() *gin.Engine
 }
 
-var rootCmd = &cobra.Command{
-	Use:   "app",
-	Short: "Start GIN-HTTP service",
-	Run: func(cmd *cobra.Command, args []string) {
-		serviceCtx := newServiceCtx()
-
-		if err := serviceCtx.Load(); err != nil {
-			log.Fatal(err)
-		}
-
-		comp := serviceCtx.MustGet("gin").(GINComponent)
-
-		router := comp.GetRouter()
-		router.Use(gin.Recovery(), gin.Logger())
-
-		if err := router.Run(fmt.Sprintf(":%d", comp.GetPort())); err != nil {
-			log.Fatal(err)
-		}
-	},
-}
-
 var outEnvCmd = &cobra.Command{
 	Use:   "outenv",
 	Short: "Output all environment variables to std",
@@ -53,8 +31,12 @@ var outEnvCmd = &cobra.Command{
 }
 
 func Execute() {
+	rootCmd := &cobra.Command{}
+
+	// Add sub-command
 	rootCmd.AddCommand(outEnvCmd)
 
+	// Execute command
 	if err := rootCmd.Execute(); err != nil {
 		fmt.Println(err)
 		os.Exit(1)
