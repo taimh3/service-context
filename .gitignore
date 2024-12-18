@@ -21,6 +21,7 @@ vendor
 .DS_STORE
 .idea
 .vscode
+__debug_bin*
 
 # env files
 .env
