@@ -76,6 +76,10 @@ var rootCmd = &cobra.Command{
 		// gorm component
 		db := serviceCtx.MustGet("postgres").(GormComponent)
 		pgRepo := NewPgRepo(db.GetDB())
+
+		// OpenTelemetry tracing plugin
+		// tracing plugin is not enabled by default, you need to enable it
+		// by set env variable `[gormc_id]_DB_PLUGIN_OPEN_TELEMETRY=true`
 		if err := pgRepo.db.Use(tracing.NewPlugin()); err != nil {
 			panic(err)
 		}
