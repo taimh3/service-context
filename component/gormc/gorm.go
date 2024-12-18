@@ -11,6 +11,7 @@ import (
 	"github.com/taimaifika/service-context/component/gormc/dialets"
 	"gorm.io/gorm"
 	"gorm.io/gorm/logger"
+	"gorm.io/plugin/opentelemetry/tracing"
 )
 
 type GormDBType int
@@ -29,6 +30,11 @@ type GormOpt struct {
 	maxOpenConnections    int
 	maxIdleConnections    int
 	maxConnectionIdleTime int
+
+	// Plugin
+	// OpenTelemetry tracing plugin
+	isPluginOpenTelemetry        bool
+	isPluginOpenTelemetryMetrics bool
 }
 
 type gormDB struct {
@@ -91,11 +97,25 @@ func (gdb *gormDB) InitFlags() {
 		3600,
 		"maximum amount of time a connection may be idle in seconds - Default 3600",
 	)
+
+	flag.BoolVar(
+		&gdb.isPluginOpenTelemetry,
+		fmt.Sprintf("%sdb-plugin-open-telemetry", prefix),
+		false,
+		"Enable OpenTelemetry tracing plugin - Default false",
+	)
+
+	flag.BoolVar(
+		&gdb.isPluginOpenTelemetryMetrics,
+		fmt.Sprintf("%sdb-plugin-open-telemetry-metrics", prefix),
+		true,
+		"Enable OpenTelemetry metrics plugin - Default true",
+	)
 }
 
-func (gdb *gormDB) isDisabled() bool {
-	return gdb.dsn == ""
-}
+// func (gdb *gormDB) isDisabled() bool {
+// 	return gdb.dsn == ""
+// }
 
 func (gdb *gormDB) Activate(_ sctx.ServiceContext) error {
 	gdb.logger = sctx.GlobalLogger().GetLogger(gdb.id)
@@ -123,16 +143,30 @@ func (gdb *gormDB) Stop() error {
 }
 
 func (gdb *gormDB) GetDB() *gorm.DB {
+	var newSessionDB *gorm.DB
 	if gdb.logger.GetLevel() == "debug" || gdb.logger.GetLevel() == "trace" {
-		return gdb.db.Session(&gorm.Session{NewDB: true}).Debug()
+		newSessionDB = gdb.db.Session(&gorm.Session{NewDB: true}).Debug()
+	} else {
+		newSessionDB = gdb.db.Session(&gorm.Session{NewDB: true, Logger: gdb.db.Logger.LogMode(logger.Silent)})
+
+		if db, err := newSessionDB.DB(); err == nil {
+			db.SetMaxOpenConns(gdb.maxOpenConnections)
+			db.SetMaxIdleConns(gdb.maxIdleConnections)
+			db.SetConnMaxIdleTime(time.Second * time.Duration(gdb.maxConnectionIdleTime))
+		}
 	}
 
-	newSessionDB := gdb.db.Session(&gorm.Session{NewDB: true, Logger: gdb.db.Logger.LogMode(logger.Silent)})
-
-	if db, err := newSessionDB.DB(); err == nil {
-		db.SetMaxOpenConns(gdb.maxOpenConnections)
-		db.SetMaxIdleConns(gdb.maxIdleConnections)
-		db.SetConnMaxIdleTime(time.Second * time.Duration(gdb.maxConnectionIdleTime))
+	// add plugin
+	if gdb.isPluginOpenTelemetry {
+		opts := []tracing.Option{}
+		if !gdb.isPluginOpenTelemetryMetrics {
+			opts = append(opts, tracing.WithoutMetrics())
+		}
+		newSessionDB.Use(
+			tracing.NewPlugin(
+				opts...,
+			),
+		)
 	}
 
 	return newSessionDB

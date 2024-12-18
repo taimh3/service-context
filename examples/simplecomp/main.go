@@ -6,6 +6,10 @@ import (
 	sctx "github.com/taimaifika/service-context"
 )
 
+type CanGetValue interface {
+	GetValue() string
+}
+
 func main() {
 	const compId = "foo"
 
@@ -16,10 +20,6 @@ func main() {
 
 	if err := serviceCtx.Load(); err != nil {
 		log.Fatal(err)
-	}
-
-	type CanGetValue interface {
-		GetValue() string
 	}
 
 	comp := serviceCtx.MustGet(compId).(CanGetValue)
