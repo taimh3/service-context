@@ -8,15 +8,18 @@ import (
 
 	"github.com/gin-gonic/gin"
 	"github.com/spf13/cobra"
-	sctx "github.com/taimaifika/service-context"
-	"github.com/taimaifika/service-context/component/ginc"
-	"github.com/taimaifika/service-context/component/gormc"
-	"github.com/taimaifika/service-context/component/otelc"
 	"go.opentelemetry.io/contrib/instrumentation/github.com/gin-gonic/gin/otelgin"
 	"go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/sdk/trace"
 	"gorm.io/gorm"
 	"gorm.io/plugin/opentelemetry/tracing"
+
+	"github.com/taimaifika/service-context/component/ginc"
+	"github.com/taimaifika/service-context/component/gormc"
+	"github.com/taimaifika/service-context/component/otelc"
+
+	sctx "github.com/taimaifika/service-context"
+	ginmid "github.com/taimaifika/service-context/component/ginc/middleware"
 )
 
 func newServiceCtx() sctx.ServiceContext {
@@ -65,12 +68,16 @@ var rootCmd = &cobra.Command{
 
 		router.Use(
 			gin.Recovery(),
-			gin.Logger(),
+			// gin.Logger(),          // format log to text
+			ginmid.LogrusLogger(), // format log to json
 			otelgin.Middleware("service-context-gorm"),
 		)
 
 		router.GET("/ping", func(c *gin.Context) {
-			c.JSON(http.StatusOK, gin.H{"data": "pong"})
+			logger := sctx.GlobalLogger().GetLogger("service-ping")
+			logger.Debug("Debug message")
+			logger.Info("Info message")
+			c.JSON(http.StatusOK, gin.H{"message": "pong"})
 		})
 
 		// gorm component

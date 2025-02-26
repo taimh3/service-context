@@ -1,0 +1,9 @@
+services:
+  db-postgres:
+    image: postgres:17.2-alpine
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_DB: todo-list
+    ports:
+      - "5432:5432"
