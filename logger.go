@@ -137,9 +137,10 @@ type Config struct {
 }
 
 type appLogger struct {
-	logger   *logrus.Logger
-	cfg      Config
-	logLevel string
+	logger    *logrus.Logger
+	cfg       Config
+	logLevel  string
+	logFormat string
 }
 
 func newAppLogger(config *Config) *appLogger {
@@ -152,9 +153,9 @@ func newAppLogger(config *Config) *appLogger {
 	}
 
 	logger := logrus.New()
-	logger.Formatter = logrus.Formatter(&logrus.TextFormatter{
-		FullTimestamp: true,
-	})
+
+	// default format log json
+	logger.SetFormatter(&logrus.JSONFormatter{})
 
 	return &appLogger{
 		logger:   logger,
@@ -183,11 +184,20 @@ func (*appLogger) ID() string {
 
 func (al *appLogger) InitFlags() {
 	flag.StringVar(&al.logLevel, "log-level", al.cfg.DefaultLevel, "Log level: panic | fatal | error | warn | info | debug | trace")
+	flag.StringVar(&al.logFormat, "log-format", "json", "Log format: text | json . Default json")
 }
 
 func (al *appLogger) Activate(_ ServiceContext) error {
 	lv := mustParseLevel(al.logLevel)
 	al.logger.SetLevel(lv)
+
+	if al.logFormat == "json" {
+		al.logger.SetFormatter(&logrus.JSONFormatter{})
+	} else {
+		al.logger.SetFormatter(&logrus.TextFormatter{
+			FullTimestamp: true,
+		})
+	}
 
 	return nil
 }
