@@ -4,9 +4,10 @@ import (
 	"context"
 	"errors"
 	"flag"
+	"log/slog"
 	"time"
 
-	sctx "github.com/taimaifika/service-context"
+	"go.opentelemetry.io/contrib/bridges/otelslog"
 	"go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/exporters/otlp/otlplog/otlploggrpc"
 	"go.opentelemetry.io/otel/exporters/otlp/otlplog/otlploghttp"
@@ -24,6 +25,8 @@ import (
 	"go.opentelemetry.io/otel/sdk/resource"
 	"go.opentelemetry.io/otel/sdk/trace"
 	semconv "go.opentelemetry.io/otel/semconv/v1.4.0"
+
+	sctx "github.com/taimaifika/service-context"
 )
 
 // Default values for configuration.
@@ -137,7 +140,7 @@ func (oc *otelComponent) Configure() error {
 		return errors.New("otel service name is empty")
 	}
 
-	// Check if the serviceversion is empty
+	// Check if the serviceVersion is empty
 	if oc.serviceVersion == "" {
 		return errors.New("otel service version is empty")
 	}
@@ -320,6 +323,9 @@ func (oc *otelComponent) newLoggerProvider() (*log.LoggerProvider, error) {
 			return nil, err
 		}
 		logExporter = otlpLogExporter
+
+		// set default slog
+		slog.SetDefault(slog.New(otelslog.NewHandler(oc.serviceName)))
 	} else {
 		// Exporter to stdout
 		stdoutLogExporter, err := stdoutlog.New()

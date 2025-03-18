@@ -3,6 +3,7 @@ package gormc
 import (
 	"flag"
 	"fmt"
+	"log/slog"
 	"strings"
 	"time"
 
@@ -30,6 +31,7 @@ type GormOpt struct {
 	maxOpenConnections    int
 	maxIdleConnections    int
 	maxConnectionIdleTime int
+	logLevel              string
 
 	// Plugin
 	// OpenTelemetry tracing plugin
@@ -40,7 +42,6 @@ type GormOpt struct {
 type gormDB struct {
 	id     string
 	prefix string
-	logger sctx.Logger
 	db     *gorm.DB
 	*GormOpt
 }
@@ -98,6 +99,13 @@ func (gdb *gormDB) InitFlags() {
 		"maximum amount of time a connection may be idle in seconds - Default 3600",
 	)
 
+	flag.StringVar(
+		&gdb.logLevel,
+		fmt.Sprintf("%sdb-log-level", prefix),
+		"info",
+		"Log level info | debug | trace - Default info ; debug and trace will log all SQL queries",
+	)
+
 	flag.BoolVar(
 		&gdb.isPluginOpenTelemetry,
 		fmt.Sprintf("%sdb-plugin-open-telemetry", prefix),
@@ -118,20 +126,18 @@ func (gdb *gormDB) InitFlags() {
 // }
 
 func (gdb *gormDB) Activate(_ sctx.ServiceContext) error {
-	gdb.logger = sctx.GlobalLogger().GetLogger(gdb.id)
-
 	dbType := getDBType(gdb.dbType)
 	if dbType == GormDBTypeNotSupported {
 		return errors.WithStack(errors.New("Database type not supported."))
 	}
 
-	gdb.logger.Info("Connecting to database...")
+	slog.Info("Connecting to database...")
 
 	var err error
 	gdb.db, err = gdb.getDBConn(dbType)
 
 	if err != nil {
-		gdb.logger.Error("Cannot connect to database", err.Error())
+		slog.Error("Cannot connect to database", "error", err.Error())
 		return err
 	}
 
@@ -144,7 +150,7 @@ func (gdb *gormDB) Stop() error {
 
 func (gdb *gormDB) GetDB() *gorm.DB {
 	var newSessionDB *gorm.DB
-	if gdb.logger.GetLevel() == "debug" || gdb.logger.GetLevel() == "trace" {
+	if gdb.logLevel == "debug" || gdb.logLevel == "trace" {
 		newSessionDB = gdb.db.Session(&gorm.Session{NewDB: true}).Debug()
 	} else {
 		newSessionDB = gdb.db.Session(&gorm.Session{NewDB: true, Logger: gdb.db.Logger.LogMode(logger.Silent)})
