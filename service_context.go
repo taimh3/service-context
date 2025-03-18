@@ -103,10 +103,6 @@ func (s *serviceCtx) Load() error {
 	return nil
 }
 
-// func (s *serviceCtx) Logger(prefix string) Logger {
-// 	return defaultLogger.GetLogger(prefix)
-// }
-
 func (s *serviceCtx) Stop() error {
 	slog.Info("Stopping service context")
 	for i := range s.components {

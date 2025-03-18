@@ -46,15 +46,8 @@ const (
 )
 
 type config struct {
-}
-
-type otelComponent struct {
-	*config
-	id     string
-	prefix string
-
+	// on/off switch
 	isEnabled bool
-	ctx       context.Context
 
 	// otel attributes
 	serviceName    string
@@ -68,6 +61,14 @@ type otelComponent struct {
 	isEnabledTrace  bool
 	isEnabledMetric bool
 	isEnabledLog    bool
+}
+
+type otelComponent struct {
+	*config
+	id     string
+	prefix string
+
+	ctx context.Context
 
 	shutdown func(context.Context) error
 }
@@ -324,8 +325,6 @@ func (oc *otelComponent) newLoggerProvider() (*log.LoggerProvider, error) {
 		}
 		logExporter = otlpLogExporter
 
-		// set default slog
-		slog.SetDefault(slog.New(otelslog.NewHandler(oc.serviceName)))
 	} else {
 		// Exporter to stdout
 		stdoutLogExporter, err := stdoutlog.New()
@@ -338,6 +337,13 @@ func (oc *otelComponent) newLoggerProvider() (*log.LoggerProvider, error) {
 	loggerProvider := log.NewLoggerProvider(
 		log.WithProcessor(log.NewBatchProcessor(logExporter)),
 	)
+
+	// set default slog
+	if oc.isOtlpProtocolEnabled() {
+		slog.Info("Using OTLP log exporter")
+		slog.SetDefault(slog.New(otelslog.NewHandler(oc.serviceName, otelslog.WithLoggerProvider(loggerProvider))))
+	}
+
 	return loggerProvider, nil
 }
 

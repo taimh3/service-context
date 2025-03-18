@@ -17,6 +17,7 @@ import (
 	"github.com/taimaifika/service-context/component/ginc"
 	"github.com/taimaifika/service-context/component/gormc"
 	"github.com/taimaifika/service-context/component/otelc"
+	"github.com/taimaifika/service-context/component/slogc"
 
 	sctx "github.com/taimaifika/service-context"
 )
@@ -26,6 +27,7 @@ var serviceContextName = "service-context-gorm"
 func newServiceCtx() sctx.ServiceContext {
 	return sctx.NewServiceContext(
 		sctx.WithName(serviceContextName),
+		sctx.WithComponent(slogc.NewSlogComponent()),
 		sctx.WithComponent(ginc.NewGin("gin")),
 		sctx.WithComponent(gormc.NewGormDB("postgres", "postgres")),
 		sctx.WithComponent(otelc.NewOtel("otel")),
@@ -74,7 +76,7 @@ var rootCmd = &cobra.Command{
 		)
 
 		router.GET("/ping", func(c *gin.Context) {
-			slog.Info("Ping", slog.String("message", "pong"))
+			slog.InfoContext(c, "This is an info message", slog.String("key", "value"))
 
 			slog.Debug("This is a debug message")
 
@@ -106,17 +108,7 @@ var rootCmd = &cobra.Command{
 	},
 }
 
-func loadLogger() {
-	logger := slog.New(slog.NewJSONHandler(os.Stdout, &slog.HandlerOptions{
-		Level: slog.LevelInfo,
-	}))
-	slog.SetDefault(logger)
-}
-
 func Execute() {
-	// load logger
-	loadLogger()
-
 	rootCmd.AddCommand(outEnvCmd)
 	slog.Info("Starting application")
 
