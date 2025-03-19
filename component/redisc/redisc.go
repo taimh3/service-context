@@ -17,7 +17,7 @@ type config struct {
 	password string
 }
 
-type RedisComponent struct {
+type redisComponent struct {
 	id string
 
 	*config
@@ -25,14 +25,14 @@ type RedisComponent struct {
 	redis *redis.ClusterClient
 }
 
-func NewRedisComponent(id string) *RedisComponent {
-	return &RedisComponent{
+func NewRedisComponent(id string) *redisComponent {
+	return &redisComponent{
 		id:     id,
 		config: new(config),
 	}
 }
 
-func (r *RedisComponent) healthCheck() error {
+func (r *redisComponent) healthCheck() error {
 	// health check
 	// ping redis
 	_, err := r.redis.Ping(context.Background()).Result()
@@ -52,21 +52,21 @@ func (r *RedisComponent) healthCheck() error {
 	return nil
 }
 
-func (r *RedisComponent) GetRedis() *redis.ClusterClient {
+func (r *redisComponent) GetRedis() *redis.ClusterClient {
 	return r.redis
 }
 
-func (r *RedisComponent) ID() string {
+func (r *redisComponent) ID() string {
 	return r.id
 }
 
-func (r *RedisComponent) InitFlags() {
+func (r *redisComponent) InitFlags() {
 	flag.StringVar(&r.url, r.id+"-url", "localhost-0:6379,localhost-1:6379,localhost-2:6379", "redis urls. default: localhost-0:6379,localhost-1:6379,localhost-2:6379")
 	flag.StringVar(&r.username, r.id+"-username", "", "redis username. default: ''")
 	flag.StringVar(&r.password, r.id+"-password", "", "redis password. default: ''")
 }
 
-func (r *RedisComponent) Activate(ctx sctx.ServiceContext) error {
+func (r *redisComponent) Activate(ctx sctx.ServiceContext) error {
 	opts := &redis.ClusterOptions{
 		Addrs: strings.Split(r.url, ","),
 	}
@@ -92,6 +92,6 @@ func (r *RedisComponent) Activate(ctx sctx.ServiceContext) error {
 	return nil
 }
 
-func (r *RedisComponent) Stop() error {
+func (r *redisComponent) Stop() error {
 	return nil
 }
