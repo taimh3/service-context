@@ -1,9 +1,12 @@
 package core
 
-import sctx "github.com/taimaifika/service-context"
+import (
+	"log/slog"
+)
 
 func Recover() {
 	if r := recover(); r != nil {
-		sctx.GlobalLogger().GetLogger("recovered").Errorln(r)
+		// sctx.GlobalLogger().GetLogger("recovered").Errorln(r)
+		slog.Error("%+v \n", r)
 	}
 }

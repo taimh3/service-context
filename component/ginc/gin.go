@@ -2,6 +2,7 @@ package ginc
 
 import (
 	"flag"
+	"log/slog"
 
 	"github.com/gin-gonic/gin"
 	sctx "github.com/taimaifika/service-context"
@@ -21,7 +22,6 @@ type ginEngine struct {
 	*Config
 	name   string
 	id     string
-	logger sctx.Logger
 	router *gin.Engine
 }
 
@@ -37,14 +37,13 @@ func (gs *ginEngine) ID() string {
 }
 
 func (gs *ginEngine) Activate(sv sctx.ServiceContext) error {
-	gs.logger = sv.Logger(gs.id)
 	gs.name = sv.GetName()
 
 	if gs.ginMode == "release" {
 		gin.SetMode(gin.ReleaseMode)
 	}
 
-	gs.logger.Info("init engine...")
+	slog.Info("init engine...")
 	gs.router = gin.New()
 
 	return nil

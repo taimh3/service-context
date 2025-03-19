@@ -1,6 +1,7 @@
 package middleware
 
 import (
+	"log/slog"
 	"net/http"
 
 	"github.com/gin-gonic/gin"
@@ -28,7 +29,7 @@ func Recovery(serviceCtx sctx.ServiceContext) gin.HandlerFunc {
 					})
 				}
 
-				serviceCtx.Logger("service").Errorf("%+v \n", err)
+				slog.Error("%+v \n", err)
 
 				// Must go with gin recovery
 				if gin.IsDebugging() {

@@ -3,6 +3,7 @@ package cmd
 import (
 	"fmt"
 	"log"
+	"log/slog"
 	"net/http"
 	"os"
 
@@ -12,22 +13,24 @@ import (
 	"go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/sdk/trace"
 	"gorm.io/gorm"
-	"gorm.io/plugin/opentelemetry/tracing"
 
 	"github.com/taimaifika/service-context/component/ginc"
 	"github.com/taimaifika/service-context/component/gormc"
 	"github.com/taimaifika/service-context/component/otelc"
+	"github.com/taimaifika/service-context/component/slogc"
 
 	sctx "github.com/taimaifika/service-context"
-	ginmid "github.com/taimaifika/service-context/component/ginc/middleware"
 )
+
+var serviceContextName = "service-context-gorm"
 
 func newServiceCtx() sctx.ServiceContext {
 	return sctx.NewServiceContext(
-		sctx.WithName("service-context-gorm"),
+		sctx.WithName(serviceContextName),
+		sctx.WithComponent(slogc.NewSlogComponent()),
+		sctx.WithComponent(otelc.NewOtel("otel")),
 		sctx.WithComponent(ginc.NewGin("gin")),
 		sctx.WithComponent(gormc.NewGormDB("postgres", "postgres")),
-		sctx.WithComponent(otelc.NewOtel("otel")),
 	)
 }
 
@@ -68,28 +71,21 @@ var rootCmd = &cobra.Command{
 
 		router.Use(
 			gin.Recovery(),
-			// gin.Logger(),          // format log to text
-			ginmid.LogrusLogger(), // format log to json
-			otelgin.Middleware("service-context-gorm"),
+			gin.Logger(), // format log to text
+			otelgin.Middleware(serviceContextName),
 		)
 
 		router.GET("/ping", func(c *gin.Context) {
-			logger := sctx.GlobalLogger().GetLogger("service-ping")
-			logger.Debug("Debug message")
-			logger.Info("Info message")
+			slog.InfoContext(c, "This is an info message", slog.String("key", "value"))
+
+			slog.Debug("This is a debug message")
+
 			c.JSON(http.StatusOK, gin.H{"message": "pong"})
 		})
 
 		// gorm component
 		db := serviceCtx.MustGet("postgres").(GormComponent)
 		pgRepo := NewPgRepo(db.GetDB())
-
-		// OpenTelemetry tracing plugin
-		// tracing plugin is not enabled by default, you need to enable it
-		// by set env variable `[gormc_id]_DB_PLUGIN_OPEN_TELEMETRY=true`
-		if err := pgRepo.db.Use(tracing.NewPlugin()); err != nil {
-			panic(err)
-		}
 
 		router.GET("/number", func(c *gin.Context) {
 			ctx, span := otel.Tracer("service-context-gorm").Start(c.Request.Context(), "get-tasks")
@@ -99,6 +95,8 @@ var rootCmd = &cobra.Command{
 			if err := pgRepo.db.WithContext(ctx).Raw("SELECT 42").Scan(&num).Error; err != nil {
 				panic(err)
 			}
+
+			slog.Info("Number", slog.Int("number", num))
 
 			c.JSON(http.StatusOK, gin.H{"data": num})
 		})
@@ -112,6 +110,7 @@ var rootCmd = &cobra.Command{
 
 func Execute() {
 	rootCmd.AddCommand(outEnvCmd)
+	slog.Info("Starting application")
 
 	if err := rootCmd.Execute(); err != nil {
 		fmt.Println(err)

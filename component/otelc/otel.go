@@ -4,9 +4,10 @@ import (
 	"context"
 	"errors"
 	"flag"
+	"log/slog"
 	"time"
 
-	sctx "github.com/taimaifika/service-context"
+	"go.opentelemetry.io/contrib/bridges/otelslog"
 	"go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/exporters/otlp/otlplog/otlploggrpc"
 	"go.opentelemetry.io/otel/exporters/otlp/otlplog/otlploghttp"
@@ -24,6 +25,8 @@ import (
 	"go.opentelemetry.io/otel/sdk/resource"
 	"go.opentelemetry.io/otel/sdk/trace"
 	semconv "go.opentelemetry.io/otel/semconv/v1.4.0"
+
+	sctx "github.com/taimaifika/service-context"
 )
 
 // Default values for configuration.
@@ -43,15 +46,8 @@ const (
 )
 
 type config struct {
-}
-
-type otelComponent struct {
-	*config
-	id     string
-	prefix string
-
+	// on/off switch
 	isEnabled bool
-	ctx       context.Context
 
 	// otel attributes
 	serviceName    string
@@ -65,6 +61,14 @@ type otelComponent struct {
 	isEnabledTrace  bool
 	isEnabledMetric bool
 	isEnabledLog    bool
+}
+
+type otelComponent struct {
+	*config
+	id     string
+	prefix string
+
+	ctx context.Context
 
 	shutdown func(context.Context) error
 }
@@ -137,7 +141,7 @@ func (oc *otelComponent) Configure() error {
 		return errors.New("otel service name is empty")
 	}
 
-	// Check if the serviceversion is empty
+	// Check if the serviceVersion is empty
 	if oc.serviceVersion == "" {
 		return errors.New("otel service version is empty")
 	}
@@ -320,6 +324,10 @@ func (oc *otelComponent) newLoggerProvider() (*log.LoggerProvider, error) {
 			return nil, err
 		}
 		logExporter = otlpLogExporter
+
+		// set default slog
+		slog.Info("Using OTLP log exporter")
+		slog.SetDefault(slog.New(otelslog.NewHandler(oc.serviceName)))
 	} else {
 		// Exporter to stdout
 		stdoutLogExporter, err := stdoutlog.New()
@@ -332,6 +340,7 @@ func (oc *otelComponent) newLoggerProvider() (*log.LoggerProvider, error) {
 	loggerProvider := log.NewLoggerProvider(
 		log.WithProcessor(log.NewBatchProcessor(logExporter)),
 	)
+
 	return loggerProvider, nil
 }
 
