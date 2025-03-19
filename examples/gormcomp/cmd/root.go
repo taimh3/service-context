@@ -28,9 +28,9 @@ func newServiceCtx() sctx.ServiceContext {
 	return sctx.NewServiceContext(
 		sctx.WithName(serviceContextName),
 		sctx.WithComponent(slogc.NewSlogComponent()),
+		sctx.WithComponent(otelc.NewOtel("otel")),
 		sctx.WithComponent(ginc.NewGin("gin")),
 		sctx.WithComponent(gormc.NewGormDB("postgres", "postgres")),
-		sctx.WithComponent(otelc.NewOtel("otel")),
 	)
 }
 

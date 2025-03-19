@@ -325,6 +325,9 @@ func (oc *otelComponent) newLoggerProvider() (*log.LoggerProvider, error) {
 		}
 		logExporter = otlpLogExporter
 
+		// set default slog
+		slog.Info("Using OTLP log exporter")
+		slog.SetDefault(slog.New(otelslog.NewHandler(oc.serviceName)))
 	} else {
 		// Exporter to stdout
 		stdoutLogExporter, err := stdoutlog.New()
@@ -337,12 +340,6 @@ func (oc *otelComponent) newLoggerProvider() (*log.LoggerProvider, error) {
 	loggerProvider := log.NewLoggerProvider(
 		log.WithProcessor(log.NewBatchProcessor(logExporter)),
 	)
-
-	// set default slog
-	if oc.isOtlpProtocolEnabled() {
-		slog.Info("Using OTLP log exporter")
-		slog.SetDefault(slog.New(otelslog.NewHandler(oc.serviceName, otelslog.WithLoggerProvider(loggerProvider))))
-	}
 
 	return loggerProvider, nil
 }
