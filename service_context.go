@@ -3,7 +3,7 @@ package sctx
 import (
 	"flag"
 	"fmt"
-	"log"
+	"log/slog"
 	"os"
 
 	"github.com/joho/godotenv"
@@ -32,7 +32,6 @@ type ServiceContext interface {
 	Load() error
 	MustGet(id string) interface{}
 	Get(id string) (interface{}, bool)
-	Logger(prefix string) Logger
 	EnvName() string
 	GetName() string
 	Stop() error
@@ -45,15 +44,12 @@ type serviceCtx struct {
 	components []Component
 	store      map[string]Component
 	cmdLine    *AppFlagSet
-	logger     Logger
 }
 
 func NewServiceContext(opts ...Option) ServiceContext {
 	sv := &serviceCtx{
 		store: make(map[string]Component),
 	}
-
-	sv.components = []Component{defaultLogger}
 
 	for _, opt := range opts {
 		opt(sv)
@@ -63,8 +59,6 @@ func NewServiceContext(opts ...Option) ServiceContext {
 
 	sv.cmdLine = newFlagSet(sv.name, flag.CommandLine)
 	sv.parseFlags()
-
-	sv.logger = defaultLogger.GetLogger(sv.name)
 
 	return sv
 }
@@ -98,7 +92,7 @@ func (s *serviceCtx) MustGet(id string) interface{} {
 }
 
 func (s *serviceCtx) Load() error {
-	s.logger.Infoln("Service context is loading...")
+	slog.Info("Service context is loading...")
 
 	for _, c := range s.components {
 		if err := c.Activate(s); err != nil {
@@ -109,19 +103,15 @@ func (s *serviceCtx) Load() error {
 	return nil
 }
 
-func (s *serviceCtx) Logger(prefix string) Logger {
-	return defaultLogger.GetLogger(prefix)
-}
-
 func (s *serviceCtx) Stop() error {
-	s.logger.Infoln("Stopping service context")
+	slog.Info("Stopping service context")
 	for i := range s.components {
 		if err := s.components[i].Stop(); err != nil {
 			return err
 		}
 	}
 
-	s.logger.Infoln("Service context stopped")
+	slog.Info("Service context stopped")
 
 	return nil
 }
@@ -155,10 +145,10 @@ func (s *serviceCtx) parseFlags() {
 	if err == nil {
 		err := godotenv.Load(envFile)
 		if err != nil {
-			log.Fatalf("Loading env(%s): %s", envFile, err.Error())
+			slog.Error("Loading env(%s): %s", envFile, err.Error())
 		}
 	} else if envFile != ".env" {
-		log.Fatalf("Loading env(%s): %s", envFile, err.Error())
+		slog.Error("Loading env(%s): %s", envFile, err.Error())
 	}
 
 	s.cmdLine.Parse([]string{})
