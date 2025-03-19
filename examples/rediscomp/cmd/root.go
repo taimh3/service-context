@@ -1,8 +1,9 @@
 package cmd
 
 import (
+	"context"
 	"fmt"
-	"log"
+	"log/slog"
 	"os"
 
 	"github.com/redis/go-redis/v9"
@@ -29,11 +30,27 @@ var rootCmd = &cobra.Command{
 		serviceCtx := newServiceCtx()
 
 		if err := serviceCtx.Load(); err != nil {
-			log.Fatal(err)
+			slog.Error("load service context error", "error", err)
+			panic(err)
 		}
 
-		// redisc := serviceCtx.MustGet("redis").(RedisComponent)
-		// redis := redisc.GetRedis()
+		redisc := serviceCtx.MustGet("redis").(RedisComponent)
+		redis := redisc.GetRedis()
+
+		// set data redis
+		_, err := redis.Set(context.Background(), "test_connection_key", "data 123123", 0).Result()
+		if err != nil {
+			slog.Error("set data error", "error", err)
+			return
+		}
+		// get data redis
+		result, err := redis.Get(context.Background(), "test_connection_key").Result()
+		if err != nil {
+			slog.Error("get data error", "error", err)
+			return
+		}
+
+		fmt.Println(result)
 
 	},
 }

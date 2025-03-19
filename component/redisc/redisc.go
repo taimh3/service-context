@@ -39,16 +39,6 @@ func (r *redisComponent) healthCheck() error {
 	if err != nil {
 		return err
 	}
-	// set data redis
-	_, err = r.redis.Set(context.Background(), "test", "test", 0).Result()
-	if err != nil {
-		return err
-	}
-	// get data redis
-	_, err = r.redis.Get(context.Background(), "test").Result()
-	if err != nil {
-		return err
-	}
 	return nil
 }
 
