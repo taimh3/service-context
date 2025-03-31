@@ -95,3 +95,19 @@ func (k *kafkaComponent) Stop() error {
 func (k *kafkaComponent) GetProducer() *sarama.SyncProducer {
 	return k.producer
 }
+
+func (k *kafkaComponent) NewConsumerGroup(groupID string) (sarama.ConsumerGroup, error) {
+	config := sarama.NewConfig()
+	config.Consumer.Return.Errors = true
+
+	// Create the consumer group
+	slog.Info("Creating Kafka consumer group", "addresses", k.Addrs, "groupID", groupID)
+	consumerGroup, err := sarama.NewConsumerGroup(k.Addrs, groupID, config)
+	if err != nil {
+		return nil, err
+	}
+
+	slog.Info("Kafka consumer group created successfully", "addresses", k.Addrs, "groupID", groupID)
+
+	return consumerGroup, nil
+}
