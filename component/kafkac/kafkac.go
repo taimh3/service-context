@@ -83,6 +83,12 @@ func (k *kafkaComponent) Activate(ctx sctx.ServiceContext) error {
 }
 
 func (k *kafkaComponent) Stop() error {
+	if k.producer != nil {
+		slog.Info("Stopping Kafka producer")
+		if err := (*k.producer).Close(); err != nil {
+			slog.Error("Failed to close Kafka producer", "error", err)
+		}
+	}
 	return nil
 }
 
