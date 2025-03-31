@@ -1,6 +1,8 @@
 package cmd
 
 import (
+	"context"
+	"encoding/json"
 	"fmt"
 	"log/slog"
 	"os"
@@ -23,6 +25,7 @@ func newServiceCtx() sctx.ServiceContext {
 
 type KafkaComponent interface {
 	GetProducer() *sarama.SyncProducer
+	SendMessage(ctx context.Context, topic string, key, value []byte) error
 }
 
 var rootCmd = &cobra.Command{
@@ -45,17 +48,32 @@ var rootCmd = &cobra.Command{
 		}
 
 		// Use the producer to send a message
-		msg := &sarama.ProducerMessage{
-			Topic: "test_topic",
-			Value: sarama.StringEncoder("Hello, Kafka!"),
+		kafkaComponent.SendMessage(context.Background(), "test_topic", []byte("key"), []byte("Hello, Kafka!"))
+		slog.Info("Message sent successfully")
+
+		// send a message with a struct
+		type Message struct {
+			Name  string `json:"name"`
+			Age   int    `json:"age"`
+			Email string `json:"email"`
 		}
-		partition, offset, err := (*producer).SendMessage(msg)
+		msg := Message{
+			Name:  "John Doe",
+			Age:   30,
+			Email: "bot@abc.com",
+		}
+		msgBytes, err := json.Marshal(msg)
+		if err != nil {
+			slog.Error("failed to marshal message", "error", err)
+			panic(err)
+		}
+		err = kafkaComponent.SendMessage(context.Background(), "test_topic", []byte("key_object"), msgBytes)
 		if err != nil {
 			slog.Error("failed to send message", "error", err)
 			panic(err)
 		}
+		slog.Info("Message sent successfully", "message", msg)
 
-		slog.Info("Message sent successfully", "partition", partition, "offset", offset)
 	},
 }
 
