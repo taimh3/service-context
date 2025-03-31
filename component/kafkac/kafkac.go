@@ -16,6 +16,10 @@ type config struct {
 	Addrs       []string
 	maxRetries  int
 	maxWaitTime time.Duration
+
+	// Authentication
+	SASLUser string
+	SASLPass string
 }
 
 type kafkaComponent struct {
@@ -41,6 +45,9 @@ func (k *kafkaComponent) InitFlags() {
 	flag.StringVar(&k.AddrsStr, k.id+"-addrs", "localhost:9092", "kafka addresses. default: localhost:9092")
 	flag.IntVar(&k.maxRetries, k.id+"-max-retries", 3, "kafka max retries. default: 3")
 	flag.DurationVar(&k.maxWaitTime, k.id+"-max-wait-time", 10*time.Second, "kafka max wait time. default: 10s")
+
+	flag.StringVar(&k.SASLUser, k.id+"-sasl-user", "", "kafka sasl user")
+	flag.StringVar(&k.SASLPass, k.id+"-sasl-pass", "", "kafka sasl password")
 }
 
 func (k *kafkaComponent) Activate(ctx sctx.ServiceContext) error {
@@ -51,6 +58,13 @@ func (k *kafkaComponent) Activate(ctx sctx.ServiceContext) error {
 	config.Producer.Partitioner = sarama.NewRoundRobinPartitioner
 	config.Producer.Retry.Max = k.maxRetries
 	config.Producer.Timeout = k.maxWaitTime
+
+	// set authentication
+	if k.SASLUser != "" && k.SASLPass != "" {
+		config.Net.SASL.Enable = true
+		config.Net.SASL.User = k.SASLUser
+		config.Net.SASL.Password = k.SASLPass
+	}
 
 	// Parse the addresses
 	k.Addrs = strings.Split(k.AddrsStr, ",")
