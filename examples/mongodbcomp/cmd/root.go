@@ -46,7 +46,7 @@ var rootCmd = &cobra.Command{
 		}
 		fmt.Println(res)
 
-		// get data
+		// get all data
 		var result []map[string]interface{}
 		cursor, err := mongoClient.Database("test").Collection("test").Find(
 			context.Background(), bson.M{
@@ -64,6 +64,21 @@ var rootCmd = &cobra.Command{
 			result = append(result, item)
 		}
 		fmt.Println(result)
+
+		// find one data
+		var resultOne map[string]interface{}
+		idStr := "67ed19ea38a0ce1af87c4f5a"
+		objID, err := bson.ObjectIDFromHex(idStr)
+		if err != nil {
+			slog.Error("convert id to object id error", "error", err)
+		}
+		filter := bson.M{"_id": objID}
+		err = mongoClient.Database("test").Collection("test").FindOne(
+			context.Background(), filter).Decode(&resultOne)
+		if err != nil {
+			slog.Error("find one data error", "error", err)
+		}
+		fmt.Println(resultOne)
 
 		// delete data
 		_, err = mongoClient.Database("test").Collection("test").DeleteOne(context.Background(), bson.M{"test": "test"})
