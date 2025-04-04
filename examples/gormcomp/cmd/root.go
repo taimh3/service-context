@@ -1,6 +1,7 @@
 package cmd
 
 import (
+	"context"
 	"fmt"
 	"log"
 	"log/slog"
@@ -11,10 +12,11 @@ import (
 	"github.com/spf13/cobra"
 	"go.opentelemetry.io/contrib/instrumentation/github.com/gin-gonic/gin/otelgin"
 	"go.opentelemetry.io/otel"
-	"go.opentelemetry.io/otel/sdk/trace"
+	"go.opentelemetry.io/otel/codes"
 	"gorm.io/gorm"
 
 	"github.com/taimaifika/service-context/component/ginc"
+	"github.com/taimaifika/service-context/component/ginc/middleware"
 	"github.com/taimaifika/service-context/component/gormc"
 	"github.com/taimaifika/service-context/component/otelc"
 	"github.com/taimaifika/service-context/component/slogc"
@@ -32,10 +34,6 @@ func newServiceCtx() sctx.ServiceContext {
 		sctx.WithComponent(ginc.NewGin("gin")),
 		sctx.WithComponent(gormc.NewGormDB("postgres", "postgres")),
 	)
-}
-
-type OtelComponent interface {
-	GetTracerProvider() *trace.TracerProvider
 }
 
 type GINginComponent interface {
@@ -64,21 +62,36 @@ var rootCmd = &cobra.Command{
 		if err := serviceCtx.Load(); err != nil {
 			log.Fatal(err)
 		}
-
 		ginComp := serviceCtx.MustGet("gin").(GINginComponent)
 
 		router := ginComp.GetRouter()
 
 		router.Use(
-			gin.Recovery(),
 			gin.Logger(), // format log to text
-			otelgin.Middleware(serviceContextName),
+			middleware.Logger(),
+			middleware.Recovery(serviceCtx),
+			otelgin.Middleware(
+				serviceContextName,
+				otelgin.WithTracerProvider(otel.GetTracerProvider()),
+			),
 		)
 
+		// ping endpoint
 		router.GET("/ping", func(c *gin.Context) {
+			_, span := otel.Tracer("service-context-gorm").Start(c.Request.Context(), "ping")
+			defer span.End()
 			slog.InfoContext(c, "This is an info message", slog.String("key", "value"))
 
 			slog.Debug("This is a debug message")
+			c.JSON(http.StatusOK, gin.H{"message": "pong"})
+		})
+
+		// test panic endpoint
+		router.GET("/panic", func(c *gin.Context) {
+			ctx, span := otel.Tracer("service-context-gorm").Start(c.Request.Context(), "ping")
+			defer span.End()
+
+			testPanic(ctx)
 
 			c.JSON(http.StatusOK, gin.H{"message": "pong"})
 		})
@@ -106,6 +119,22 @@ var rootCmd = &cobra.Command{
 			log.Fatal(err)
 		}
 	},
+}
+
+func testPanic(ctx context.Context) {
+	_, span := otel.Tracer("service-context-gorm").Start(ctx, "testPanic")
+	defer span.End()
+	slog.InfoContext(ctx, "This is an info message", slog.String("key", "value"))
+
+	slog.Debug("This is a debug message")
+	err := fmt.Errorf("test error")
+
+	// set otel error
+	span.SetStatus(codes.Error, "test error")
+	// set otel status
+	span.RecordError(err)
+
+	panic("test panic")
 }
 
 func Execute() {
