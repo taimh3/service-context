@@ -43,6 +43,8 @@ const (
 	defaultOtelProtocol     = OtelProtocolGRPC
 	defaultIsEnabled        = true
 	defaultPrefix           = "otel"
+	defaultEnvironment      = "development"
+	defaultLanguage         = "go"
 )
 
 type config struct {
@@ -52,6 +54,7 @@ type config struct {
 	// otel attributes
 	serviceName    string
 	serviceVersion string
+	environment    string
 
 	// otel exporter
 	exporterOtlpEndpoint string
@@ -95,6 +98,8 @@ func (oc *otelComponent) InitFlags() {
 	flag.StringVar(&oc.serviceName, oc.prefix+"-service-name", defaultNameService, "The service name must be the same APP_NAME in .env")
 	// OTEL_SERVICE_VERSION
 	flag.StringVar(&oc.serviceVersion, oc.prefix+"-service-version", defaultVersion, "The service version must be the same release, e.g. 1.0.0")
+	// OTEL_ENVIRONMENT
+	flag.StringVar(&oc.environment, oc.prefix+"-environment", defaultEnvironment, "The environment name, e.g. development, staging, and production")
 
 	// otel exporter
 	// OTEL_EXPORTER_OTLP_PROTOCOL
@@ -256,6 +261,8 @@ func (oc *otelComponent) newTraceProvider() (*trace.TracerProvider, error) {
 		trace.WithBatcher(traceExporter,
 			// Default is 5s. Set to 1s for demonstrative purposes.
 			trace.WithBatchTimeout(time.Second)),
+		trace.WithSampler(trace.AlwaysSample()),
+		trace.WithBatcher(traceExporter),
 		trace.WithResource(res),
 	)
 	return traceProvider, nil
@@ -275,6 +282,11 @@ func (oc *otelComponent) newResource() *resource.Resource {
 		semconv.SchemaURL,
 		semconv.ServiceNameKey.String(oc.serviceName),
 		semconv.ServiceVersionKey.String(oc.serviceVersion),
+		semconv.DeploymentEnvironmentKey.String(oc.environment),
+		semconv.TelemetrySDKLanguageGo.Key.String(defaultLanguage),
+		semconv.TelemetrySDKVersionKey.String(otel.Version()),
+
+		// Add more attributes here
 	)
 	return res
 }
