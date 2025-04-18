@@ -10,11 +10,15 @@ import (
 	"github.com/spf13/cobra"
 
 	sctx "github.com/taimaifika/service-context"
+	"github.com/taimaifika/service-context/component/otelc"
 	"github.com/taimaifika/service-context/component/redisc"
+	"github.com/taimaifika/service-context/component/slogc"
 )
 
 func newServiceCtx() sctx.ServiceContext {
 	return sctx.NewServiceContext(
+		sctx.WithComponent(slogc.NewSlogComponent()),
+		sctx.WithComponent(otelc.NewOtel("otel")),
 		sctx.WithComponent(redisc.NewRedisComponent("redis")),
 	)
 }
