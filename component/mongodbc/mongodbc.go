@@ -14,15 +14,16 @@ import (
 )
 
 type config struct {
-	url               string
-	username          string
-	password          string
-	authMechanism     string
-	authSource        string
-	maxPoolSize       uint64
-	minPoolSize       uint64
-	timeout           time.Duration
-	connectionTimeout time.Duration
+	url                    string
+	username               string
+	password               string
+	authMechanism          string
+	authSource             string
+	maxPoolSize            uint64
+	minPoolSize            uint64
+	timeout                time.Duration
+	connectionTimeout      time.Duration
+	ServerSelectionTimeout time.Duration
 }
 
 type mongoDbComponent struct {
@@ -86,7 +87,8 @@ func (m *mongoDbComponent) InitFlags() {
 	flag.Uint64Var(&m.maxPoolSize, m.id+"-max-pool-size", 100, "mongodb max pool size. default: 100")
 
 	flag.DurationVar(&m.timeout, m.id+"-timeout", 10*time.Second, "mongodb timeout. default: 10s")
-	flag.DurationVar(&m.connectionTimeout, m.id+"-connection-timeout", 10*time.Second, "mongodb connection timeout. default: 10s")
+	flag.DurationVar(&m.connectionTimeout, m.id+"-connection-timeout", 30*time.Second, "mongodb connection timeout. default: 30s")
+	flag.DurationVar(&m.ServerSelectionTimeout, m.id+"-server-selection-timeout", 30*time.Second, "mongodb server selection timeout. default: 30s")
 
 }
 
@@ -95,8 +97,6 @@ func (m *mongoDbComponent) Activate(ctx sctx.ServiceContext) error {
 	opts := options.Client()
 	// set url
 	opts.ApplyURI(m.url)
-	// set timeout
-	opts.SetTimeout(m.timeout)
 
 	// set min pool size
 	opts.SetMinPoolSize(m.minPoolSize)
@@ -104,11 +104,14 @@ func (m *mongoDbComponent) Activate(ctx sctx.ServiceContext) error {
 	// set max pool size
 	opts.SetMaxPoolSize(m.maxPoolSize)
 
+	// set timeout
+	opts.SetTimeout(m.timeout)
+
 	// set connection timeout
-	opts.SetConnectTimeout(m.timeout)
+	opts.SetConnectTimeout(m.connectionTimeout)
 
 	// set ConnectTimeout
-	opts.SetServerSelectionTimeout(m.connectionTimeout)
+	opts.SetServerSelectionTimeout(m.ServerSelectionTimeout)
 
 	// set auth database
 	if m.username != "" && m.password != "" {
