@@ -123,7 +123,7 @@ func (m *mongoDbComponent) Activate(ctx sctx.ServiceContext) error {
 		})
 	}
 	// validate auth source, return err
-	if opts.Auth.AuthSource == "" {
+	if m.authSource == "" {
 		return errors.New("auth source is empty")
 	}
 
