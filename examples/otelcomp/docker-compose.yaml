@@ -1,6 +1,6 @@
 services:
   jaeger:
-    image: jaegertracing/jaeger:2.4.0
+    image: jaegertracing/jaeger:2.6.0
     container_name: jaeger
     command: 
       - '--config'
