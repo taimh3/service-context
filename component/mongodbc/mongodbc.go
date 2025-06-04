@@ -9,6 +9,7 @@ import (
 
 	"go.mongodb.org/mongo-driver/v2/mongo"
 	"go.mongodb.org/mongo-driver/v2/mongo/options"
+	"go.opentelemetry.io/contrib/instrumentation/go.mongodb.org/mongo-driver/v2/mongo/otelmongo"
 
 	sctx "github.com/taimaifika/service-context"
 )
@@ -24,6 +25,9 @@ type config struct {
 	timeout                time.Duration
 	connectionTimeout      time.Duration
 	ServerSelectionTimeout time.Duration
+
+	// OTEL
+	isOpenTelemetry bool
 }
 
 type mongoDbComponent struct {
@@ -76,7 +80,7 @@ func (m *mongoDbComponent) ID() string {
 }
 
 func (m *mongoDbComponent) InitFlags() {
-	flag.StringVar(&m.url, m.id+"-url", "mongodb://localhost:27017", "redis urls. default: mongodb://localhost:27017")
+	flag.StringVar(&m.url, m.id+"-url", "mongodb://localhost:27017", "mongodb urls. default: mongodb://localhost:27017")
 
 	flag.StringVar(&m.username, m.id+"-username", "", "mongodb username. default: ''")
 	flag.StringVar(&m.password, m.id+"-password", "", "mongodb password. default: ''")
@@ -90,6 +94,8 @@ func (m *mongoDbComponent) InitFlags() {
 	flag.DurationVar(&m.connectionTimeout, m.id+"-connection-timeout", 30*time.Second, "mongodb connection timeout. default: 30s")
 	flag.DurationVar(&m.ServerSelectionTimeout, m.id+"-server-selection-timeout", 30*time.Second, "mongodb server selection timeout. default: 30s")
 
+	// OTEL
+	flag.BoolVar(&m.isOpenTelemetry, m.id+"-otel", false, "enable OpenTelemetry instrumentation for MongoDB. default: false")
 }
 
 func (m *mongoDbComponent) Activate(ctx sctx.ServiceContext) error {
@@ -125,6 +131,13 @@ func (m *mongoDbComponent) Activate(ctx sctx.ServiceContext) error {
 	// validate auth source, return err
 	if opts.Auth.AuthSource == "" {
 		return errors.New("auth source is empty")
+	}
+
+	// OpenTelemetry instrumentation
+	// Just ensure the OpenTelemetry SDK is initialized in your application.
+	if m.isOpenTelemetry {
+		// Set OpenTelemetry options
+		opts.Monitor = otelmongo.NewMonitor()
 	}
 
 	slog.Info("Connecting to mongo db ...")
