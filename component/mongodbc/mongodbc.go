@@ -2,7 +2,6 @@ package mongodbc
 
 import (
 	"context"
-	"errors"
 	"flag"
 	"log/slog"
 	"time"
@@ -127,10 +126,6 @@ func (m *mongoDbComponent) Activate(ctx sctx.ServiceContext) error {
 			AuthMechanism: m.authMechanism,
 			AuthSource:    m.authSource,
 		})
-	}
-	// validate auth source, return err
-	if m.authSource == "" {
-		return errors.New("auth source is empty")
 	}
 
 	// OpenTelemetry instrumentation
