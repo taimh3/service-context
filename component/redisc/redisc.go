@@ -17,10 +17,12 @@ type config struct {
 	username string
 	password string
 
+	// Enable OpenTelemetry instrumentation.
+	isOpenTelemetry bool
 	// Enable tracing instrumentation.
-	is_trace_enabled bool
+	isOpenTelemetryTraces bool
 	// Enable metrics instrumentation.
-	is_metrics_enabled bool
+	isOpenTelemetryMetrics bool
 }
 
 type redisComponent struct {
@@ -60,8 +62,11 @@ func (r *redisComponent) InitFlags() {
 	flag.StringVar(&r.url, r.id+"-url", "localhost-0:6379,localhost-1:6379,localhost-2:6379", "redis urls. default: localhost-0:6379,localhost-1:6379,localhost-2:6379")
 	flag.StringVar(&r.username, r.id+"-username", "", "redis username. default: ''")
 	flag.StringVar(&r.password, r.id+"-password", "", "redis password. default: ''")
-	flag.BoolVar(&r.is_trace_enabled, r.id+"-is-trace", false, "enable tracing instrumentation. default: false")
-	flag.BoolVar(&r.is_metrics_enabled, r.id+"-is-metrics", false, "enable metrics instrumentation. default: false")
+
+	// OpenTelemetry flags
+	flag.BoolVar(&r.isOpenTelemetry, r.id+"-is-otel", false, "enable OpenTelemetry instrumentation. default: false")
+	flag.BoolVar(&r.isOpenTelemetryTraces, r.id+"-is-otel-traces", false, "enable OpenTelemetry tracing instrumentation. default: false")
+	flag.BoolVar(&r.isOpenTelemetryMetrics, r.id+"-is-otel-metrics", false, "enable OpenTelemetry metrics instrumentation. default: false")
 }
 
 func (r *redisComponent) Activate(ctx sctx.ServiceContext) error {
@@ -77,17 +82,22 @@ func (r *redisComponent) Activate(ctx sctx.ServiceContext) error {
 
 	r.redis = redis.NewClusterClient(opts)
 
-	if r.is_trace_enabled {
-		slog.Info("Tracing instrumentation enabled")
-		if err := redisotel.InstrumentTracing(r.redis); err != nil {
-			return err
+	// OpenTelemetry instrumentation
+	// Just ensure the OpenTelemetry SDK is initialized in your application.
+	if r.isOpenTelemetry {
+		slog.Info("OpenTelemetry instrumentation enabled")
+		if r.isOpenTelemetryTraces {
+			slog.Info("Tracing instrumentation enabled")
+			if err := redisotel.InstrumentTracing(r.redis); err != nil {
+				return err
+			}
 		}
-	}
 
-	if r.is_metrics_enabled {
-		slog.Info("Metrics instrumentation enabled")
-		if err := redisotel.InstrumentMetrics(r.redis); err != nil {
-			return err
+		if r.isOpenTelemetryMetrics {
+			slog.Info("Metrics instrumentation enabled")
+			if err := redisotel.InstrumentMetrics(r.redis); err != nil {
+				return err
+			}
 		}
 	}
 
