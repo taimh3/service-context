@@ -22,6 +22,7 @@ func newServiceCtx() sctx.ServiceContext {
 
 type MongoDbComponent interface {
 	GetMongoClient() *mongo.Client
+	GetDatabaseName() string
 }
 
 var rootCmd = &cobra.Command{
@@ -38,9 +39,10 @@ var rootCmd = &cobra.Command{
 		// get mongodb component
 		mongoDbComponent := serviceCtx.MustGet("mongodb").(MongoDbComponent)
 		mongoClient := mongoDbComponent.GetMongoClient()
+		databaseName := mongoDbComponent.GetDatabaseName()
 
 		// insert data
-		res, err := mongoClient.Database("test").Collection("test").InsertOne(context.Background(), map[string]string{"test": "test"})
+		res, err := mongoClient.Database(databaseName).Collection("test").InsertOne(context.Background(), map[string]string{"test": "test"})
 		if err != nil {
 			slog.Error("insert data error", "error", err)
 		}
@@ -48,7 +50,7 @@ var rootCmd = &cobra.Command{
 
 		// get all data
 		var result []map[string]interface{}
-		cursor, err := mongoClient.Database("test").Collection("test").Find(
+		cursor, err := mongoClient.Database(databaseName).Collection("test").Find(
 			context.Background(), bson.M{
 				"test": "test",
 			})
@@ -73,7 +75,7 @@ var rootCmd = &cobra.Command{
 			slog.Error("convert id to object id error", "error", err)
 		}
 		filter := bson.M{"_id": objID}
-		err = mongoClient.Database("test").Collection("test").FindOne(
+		err = mongoClient.Database(databaseName).Collection("test").FindOne(
 			context.Background(), filter).Decode(&resultOne)
 		if err != nil {
 			slog.Error("find one data error", "error", err)
@@ -81,7 +83,7 @@ var rootCmd = &cobra.Command{
 		fmt.Println(resultOne)
 
 		// delete data
-		_, err = mongoClient.Database("test").Collection("test").DeleteOne(context.Background(), bson.M{"test": "test"})
+		_, err = mongoClient.Database(databaseName).Collection("test").DeleteOne(context.Background(), bson.M{"test": "test"})
 		if err != nil {
 			slog.Error("delete data error", "error", err)
 		}
