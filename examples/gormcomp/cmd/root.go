@@ -20,6 +20,7 @@ import (
 	"github.com/taimaifika/service-context/component/gormc"
 	"github.com/taimaifika/service-context/component/otelc"
 	"github.com/taimaifika/service-context/component/slogc"
+	composer "github.com/taimaifika/service-context/examples/gormcomp/components"
 
 	sctx "github.com/taimaifika/service-context"
 )
@@ -113,6 +114,13 @@ var rootCmd = &cobra.Command{
 
 			c.JSON(http.StatusOK, gin.H{"data": num})
 		})
+
+		// task service
+		taskApiService := composer.ComposeTaskApiService(serviceCtx)
+		tasks := router.Group("/tasks")
+		{
+			tasks.GET("", taskApiService.ListTaskHdl())
+		}
 
 		// start the server
 		if err := router.Run(fmt.Sprintf(":%d", ginComp.GetPort())); err != nil {
