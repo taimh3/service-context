@@ -33,6 +33,9 @@ type GormOpt struct {
 	maxConnectionIdleTime int
 	logLevel              string
 
+	isKeepDefaultTransaction bool
+	isPrepareStmt            bool
+
 	// Plugin
 	// OpenTelemetry tracing plugin
 	isPluginOpenTelemetry        bool
@@ -107,6 +110,20 @@ func (gdb *gormDB) InitFlags() {
 	)
 
 	flag.BoolVar(
+		&gdb.isKeepDefaultTransaction,
+		fmt.Sprintf("%sdb-keep-default-transaction", prefix),
+		false,
+		"Keep default transaction - Default false",
+	)
+
+	flag.BoolVar(
+		&gdb.isPrepareStmt,
+		fmt.Sprintf("%sdb-prepare-stmt", prefix),
+		false,
+		"Use prepared statement - Default false",
+	)
+
+	flag.BoolVar(
 		&gdb.isPluginOpenTelemetry,
 		fmt.Sprintf("%sdb-plugin-open-telemetry", prefix),
 		false,
@@ -120,10 +137,6 @@ func (gdb *gormDB) InitFlags() {
 		"Enable OpenTelemetry metrics plugin - Default true",
 	)
 }
-
-// func (gdb *gormDB) isDisabled() bool {
-// 	return gdb.dsn == ""
-// }
 
 func (gdb *gormDB) Activate(_ sctx.ServiceContext) error {
 	dbType := getDBType(gdb.dbType)
@@ -194,15 +207,20 @@ func getDBType(dbType string) GormDBType {
 }
 
 func (gdb *gormDB) getDBConn(t GormDBType) (dbConn *gorm.DB, err error) {
+	// GORM config
+	gormConfig := &gorm.Config{
+		SkipDefaultTransaction: gdb.isKeepDefaultTransaction,
+		PrepareStmt:            gdb.isPrepareStmt,
+	}
 	switch t {
 	case GormDBTypeMySQL:
-		return dialets.MySqlDB(gdb.dsn)
+		return dialets.MySqlDB(gdb.dsn, gormConfig)
 	case GormDBTypePostgres:
-		return dialets.PostgresDB(gdb.dsn)
+		return dialets.PostgresDB(gdb.dsn, gormConfig)
 	case GormDBTypeSQLite:
-		return dialets.SQLiteDB(gdb.dsn)
+		return dialets.SQLiteDB(gdb.dsn, gormConfig)
 	case GormDBTypeMSSQL:
-		return dialets.MSSqlDB(gdb.dsn)
+		return dialets.MSSqlDB(gdb.dsn, gormConfig)
 	}
 
 	return nil, nil

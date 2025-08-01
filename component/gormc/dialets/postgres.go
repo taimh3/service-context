@@ -8,16 +8,6 @@ import (
 // PostgresDB Get Postgres DB connection
 // dns string
 // Ex: host=myhost port=myport user=gorm dbname=gorm password=mypassword
-func PostgresDB(dsn string) (db *gorm.DB, err error) {
-	return gorm.Open(postgres.Open(dsn), &gorm.Config{})
+func PostgresDB(dsn string, gormConfig *gorm.Config) (db *gorm.DB, err error) {
+	return gorm.Open(postgres.Open(dsn), gormConfig)
 }
-
-// // PostgresDB Get Postgres DB connection
-// // dns string
-// // Ex: host=myhost port=myport user=gorm dbname=gorm password=mypassword
-// func PostgresDB(dsn string) (db *gorm.DB, err error) {
-// 	return gorm.Open(postgres.Open(dsn), &gorm.Config{
-// 		SkipDefaultTransaction: true,
-// 		PrepareStmt:            true,
-// 	})
-// }
