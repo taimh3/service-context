@@ -8,6 +8,6 @@ import (
 // SQLiteDB Get SQLite DB connection
 // dsn string
 // Ex: /tmp/gorm.db
-func SQLiteDB(dsn string) (db *gorm.DB, err error) {
-	return gorm.Open(sqlite.Open(dsn), &gorm.Config{})
+func SQLiteDB(dsn string, gormConfig *gorm.Config) (db *gorm.DB, err error) {
+	return gorm.Open(sqlite.Open(dsn), gormConfig)
 }

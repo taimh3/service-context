@@ -8,6 +8,6 @@ import (
 // MSSqlDB Get MS SQL DB connection
 // dsn string
 // Ex: sqlserver://username:password@localhost:1433?database=dbname
-func MSSqlDB(dsn string) (db *gorm.DB, err error) {
-	return gorm.Open(sqlserver.Open(dsn))
+func MSSqlDB(dsn string, gormConfig *gorm.Config) (db *gorm.DB, err error) {
+	return gorm.Open(sqlserver.Open(dsn), gormConfig)
 }
