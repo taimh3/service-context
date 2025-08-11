@@ -11,7 +11,6 @@ import (
 	"time"
 
 	"github.com/gin-gonic/gin"
-	"github.com/redis/go-redis/v9"
 	"github.com/spf13/cobra"
 	"go.opentelemetry.io/contrib/instrumentation/github.com/gin-gonic/gin/otelgin"
 
@@ -21,6 +20,9 @@ import (
 	"github.com/taimaifika/service-context/component/otelc"
 	"github.com/taimaifika/service-context/component/redisc"
 	"github.com/taimaifika/service-context/component/slogc"
+	"github.com/taimaifika/service-context/core"
+	"github.com/taimaifika/service-context/examples/rediscomp/common"
+	composer "github.com/taimaifika/service-context/examples/rediscomp/components"
 )
 
 var serviceContextName = "service-context-redis"
@@ -30,17 +32,8 @@ func newServiceCtx() sctx.ServiceContext {
 		sctx.WithComponent(slogc.NewSlogComponent()),
 		sctx.WithComponent(otelc.NewOtel("otel")),
 		sctx.WithComponent(ginc.NewGin("gin")),
-		sctx.WithComponent(redisc.NewRedisComponent("redis")),
+		sctx.WithComponent(redisc.NewRedisComponent(common.KeyCompRedis)),
 	)
-}
-
-type RedisComponent interface {
-	GetRedis() *redis.ClusterClient
-}
-
-type GINComponent interface {
-	GetPort() int
-	GetRouter() *gin.Engine
 }
 
 var rootCmd = &cobra.Command{
@@ -54,8 +47,11 @@ var rootCmd = &cobra.Command{
 			panic(err)
 		}
 
-		redisc := serviceCtx.MustGet("redis").(RedisComponent)
-		ginComp := serviceCtx.MustGet("gin").(GINComponent)
+		// Initialize global error context
+		core.InitGlobalErrorContext()
+
+		redisc := serviceCtx.MustGet(common.KeyCompRedis).(common.RedisComponent)
+		ginComp := serviceCtx.MustGet(common.KeyCompGIN).(common.GINComponent)
 		redis := redisc.GetRedis()
 
 		router := ginComp.GetRouter()
@@ -72,7 +68,7 @@ var rootCmd = &cobra.Command{
 			c.JSON(http.StatusOK, gin.H{"status": "ok"})
 		})
 
-		// test redis connection
+		// test redis connection (legacy endpoint)
 		router.GET("/redis/test", func(c *gin.Context) {
 			ctx, cancel := context.WithTimeout(c.Request.Context(), 5*time.Second)
 			defer cancel()
@@ -96,77 +92,16 @@ var rootCmd = &cobra.Command{
 			c.JSON(http.StatusOK, gin.H{"result": result})
 		})
 
-		// set key-value
-		router.POST("/redis/set", func(c *gin.Context) {
-			var body struct {
-				Key   string `json:"key"`
-				Value string `json:"value"`
-			}
-			if err := c.ShouldBindJSON(&body); err != nil || body.Key == "" {
-				c.JSON(http.StatusBadRequest, gin.H{"error": "invalid body"})
-				return
-			}
-
-			ctx, cancel := context.WithTimeout(c.Request.Context(), 5*time.Second)
-			defer cancel()
-
-			err := redis.Set(ctx, body.Key, body.Value, 0).Err()
-			if err != nil {
-				c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
-				return
-			}
-
-			c.JSON(http.StatusOK, gin.H{"message": "key set successfully"})
-		})
-
-		// get value by key
-		router.GET("/redis/get/:key", func(c *gin.Context) {
-			key := c.Param("key")
-			if key == "" {
-				c.JSON(http.StatusBadRequest, gin.H{"error": "key is required"})
-				return
-			}
-
-			ctx, cancel := context.WithTimeout(c.Request.Context(), 5*time.Second)
-			defer cancel()
-
-			result, err := redis.Get(ctx, key).Result()
-			if err != nil {
-				if err.Error() == "redis: nil" {
-					c.JSON(http.StatusNotFound, gin.H{"error": "key not found"})
-					return
-				}
-				c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
-				return
-			}
-
-			c.JSON(http.StatusOK, gin.H{"key": key, "value": result})
-		})
-
-		// delete key
-		router.DELETE("/redis/del/:key", func(c *gin.Context) {
-			key := c.Param("key")
-			if key == "" {
-				c.JSON(http.StatusBadRequest, gin.H{"error": "key is required"})
-				return
-			}
-
-			ctx, cancel := context.WithTimeout(c.Request.Context(), 5*time.Second)
-			defer cancel()
-
-			deleted, err := redis.Del(ctx, key).Result()
-			if err != nil {
-				c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
-				return
-			}
-
-			if deleted == 0 {
-				c.JSON(http.StatusNotFound, gin.H{"error": "key not found"})
-				return
-			}
-
-			c.JSON(http.StatusOK, gin.H{"deleted": deleted})
-		})
+		// Cache service using composer pattern
+		cacheApiService := composer.ComposeCacheApiService(serviceCtx)
+		cache := router.Group("/cache")
+		{
+			cache.POST("", cacheApiService.SetCacheHandler())           // Set cache
+			cache.GET("/:key", cacheApiService.GetCacheHandler())       // Get cache by key
+			cache.DELETE("/:key", cacheApiService.DeleteCacheHandler()) // Delete cache by key
+			cache.HEAD("/:key", cacheApiService.ExistsCacheHandler())   // Check if key exists
+			cache.GET("", cacheApiService.ListKeysHandler())            // List keys (with optional pattern query)
+		}
 
 		srv := &http.Server{Addr: fmt.Sprintf(":%d", ginComp.GetPort()), Handler: router}
 
