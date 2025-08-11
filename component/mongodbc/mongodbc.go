@@ -26,7 +26,8 @@ type config struct {
 	ServerSelectionTimeout time.Duration
 
 	// OTEL
-	isOpenTelemetry bool
+	isOpenTelemetry            bool // enable OpenTelemetry instrumentation for MongoDB
+	isCommandAttributeDisabled bool // disable command attribute injection
 }
 
 type mongoDbComponent struct {
@@ -95,6 +96,7 @@ func (m *mongoDbComponent) InitFlags() {
 
 	// OTEL
 	flag.BoolVar(&m.isOpenTelemetry, m.id+"-otel", false, "enable OpenTelemetry instrumentation for MongoDB. default: false")
+	flag.BoolVar(&m.isCommandAttributeDisabled, m.id+"-otel-command-attribute-disabled", true, "disable command attribute injection. default: true")
 }
 
 func (m *mongoDbComponent) Activate(ctx sctx.ServiceContext) error {
@@ -132,7 +134,9 @@ func (m *mongoDbComponent) Activate(ctx sctx.ServiceContext) error {
 	// Just ensure the OpenTelemetry SDK is initialized in your application.
 	if m.isOpenTelemetry {
 		// Set OpenTelemetry options
-		opts.Monitor = otelmongo.NewMonitor()
+		opts.Monitor = otelmongo.NewMonitor(
+			otelmongo.WithCommandAttributeDisabled(m.isCommandAttributeDisabled),
+		)
 	}
 
 	slog.Info("Connecting to mongo db ...")
