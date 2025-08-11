@@ -19,9 +19,12 @@ import (
 	"github.com/taimaifika/service-context/component/slogc"
 	"go.mongodb.org/mongo-driver/v2/bson"
 	"go.mongodb.org/mongo-driver/v2/mongo"
+	"go.opentelemetry.io/contrib/instrumentation/github.com/gin-gonic/gin/otelgin"
 
 	sctx "github.com/taimaifika/service-context"
 )
+
+const serviceContextName = "service-context-mongodb"
 
 func newServiceCtx() sctx.ServiceContext {
 	return sctx.NewServiceContext(
@@ -63,9 +66,10 @@ var rootCmd = &cobra.Command{
 		router := ginComp.GetRouter()
 		// middlewares
 		router.Use(
-			gin.Logger(),
+			middleware.Logger(),
 			middleware.AllowCORS(),
-			gin.Recovery(),
+			middleware.Recovery(serviceCtx),
+			otelgin.Middleware(serviceContextName),
 		)
 
 		db := mongoComp.GetMongoClient().Database(mongoComp.GetDatabaseName())
