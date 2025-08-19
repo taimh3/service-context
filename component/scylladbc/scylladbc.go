@@ -23,9 +23,11 @@ type config struct {
 	connectTimeout time.Duration // Timeout for establishing a connection
 
 	// Keyspace
-	ks                  string
-	ksClass             string // Class for keyspace replication, e.g., SimpleStrategy, NetworkTopologyStrategy
-	ksReplicationFactor int    // Replication factor for the keyspace, e.g., 1 for SimpleStrategy
+	ks                         string
+	ksClass                    string // Class for keyspace replication, e.g., SimpleStrategy, NetworkTopologyStrategy
+	ksReplicationFactor        int    // Replication factor for the keyspace, e.g., 1 for SimpleStrategy
+	ksDisableInitialHostLookup bool   // Disable initial host lookup
+	ksNumConns                 int    // Number of connections to use
 }
 
 type scyllaDbComponent struct {
@@ -62,6 +64,8 @@ func (s *scyllaDbComponent) InitFlags() {
 	flag.StringVar(&s.config.ks, s.id+"-keyspace", "", "ScyllaDB keyspace to use, not empty (e.g. catalog, admin, etc.)")
 	flag.StringVar(&s.config.ksClass, s.id+"-keyspace-class", "NetworkTopologyStrategy", "ScyllaDB keyspace replication class (e.g. SimpleStrategy, NetworkTopologyStrategy)")
 	flag.IntVar(&s.config.ksReplicationFactor, s.id+"-keyspace-replication-factor", 1, "ScyllaDB keyspace replication factor (e.g. 1 for SimpleStrategy)")
+	flag.BoolVar(&s.config.ksDisableInitialHostLookup, s.id+"-keyspace-disable-initial-host-lookup", true, "Disable initial host lookup for ScyllaDB keyspace")
+	flag.IntVar(&s.config.ksNumConns, s.id+"-keyspace-num-conns", 10, "Number of connections to use for ScyllaDB keyspace")
 }
 
 func (s *scyllaDbComponent) Activate(ctx sctx.ServiceContext) error {
@@ -78,6 +82,10 @@ func (s *scyllaDbComponent) Activate(ctx sctx.ServiceContext) error {
 	cluster.Consistency = gocql.Quorum
 	cluster.Timeout = s.config.timeout
 	cluster.ConnectTimeout = s.config.connectTimeout
+	cluster.NumConns = s.config.ksNumConns
+
+	// Disable initial host lookup, it helps with faster startup
+	cluster.DisableInitialHostLookup = s.config.ksDisableInitialHostLookup
 
 	// If username and password are provided, set the authenticator
 	// This is optional, if not provided, it will connect without authentication
