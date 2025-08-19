@@ -107,16 +107,16 @@ func (s *scyllaDbComponent) Activate(ctx sctx.ServiceContext) error {
 	// Log successful activation
 	log.Printf("ScyllaDB component %s activated successfully", s.id)
 
-	// Create the keyspace if it does not exist
-	if s.config.ks != "" {
-		createKeyspaceQuery := fmt.Sprintf(`
-			CREATE KEYSPACE IF NOT EXISTS %s
-			WITH REPLICATION = {'class': '%s', 'replication_factor': %d}
-		`, s.config.ks, s.config.ksClass, s.config.ksReplicationFactor)
-		if err := s.session.Query(createKeyspaceQuery).Exec(); err != nil {
-			return fmt.Errorf("failed to create keyspace: %w", err)
-		}
-	}
+	// // Create the keyspace if it does not exist
+	// if s.config.ks != "" {
+	// 	createKeyspaceQuery := fmt.Sprintf(`
+	// 		CREATE KEYSPACE IF NOT EXISTS %s
+	// 		WITH REPLICATION = {'class': '%s', 'replication_factor': %d}
+	// 	`, s.config.ks, s.config.ksClass, s.config.ksReplicationFactor)
+	// 	if err := s.session.Query(createKeyspaceQuery).Exec(); err != nil {
+	// 		return fmt.Errorf("failed to create keyspace: %w", err)
+	// 	}
+	// }
 
 	return nil
 }
