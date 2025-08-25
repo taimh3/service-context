@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/gocql/gocql"
+	"github.com/scylladb/gocqlx/v3"
 	sctx "github.com/taimaifika/service-context"
 )
 
@@ -34,18 +35,13 @@ type scyllaDbComponent struct {
 	id string
 	*config
 
-	session *gocql.Session
+	cluster *gocql.ClusterConfig // ScyllaDB cluster configuration
 }
 
 func NewScyllaDbComponent(id string) *scyllaDbComponent {
 	return &scyllaDbComponent{
-		id: id,
-		config: &config{
-			hosts:    []string{"127.0.0.1"},
-			ks:       "catalog",
-			username: "",
-			password: "",
-		},
+		id:     id,
+		config: new(config),
 	}
 }
 
@@ -79,10 +75,13 @@ func (s *scyllaDbComponent) Activate(ctx sctx.ServiceContext) error {
 	// Create a new ScyllaDB cluster configuration
 	cluster := gocql.NewCluster(s.config.hosts...)
 	cluster.Keyspace = s.config.ks
-	cluster.Consistency = gocql.Quorum
+	cluster.Consistency = gocql.LocalQuorum
 	cluster.Timeout = s.config.timeout
 	cluster.ConnectTimeout = s.config.connectTimeout
 	cluster.NumConns = s.config.ksNumConns
+
+	// Note: TokenAwareHostPolicy will be set per session to avoid sharing between sessions
+	// This follows best practice to avoid "sharing token aware host selection policy between sessions is not supported" error
 
 	// Disable initial host lookup, it helps with faster startup
 	cluster.DisableInitialHostLookup = s.config.ksDisableInitialHostLookup
@@ -96,43 +95,64 @@ func (s *scyllaDbComponent) Activate(ctx sctx.ServiceContext) error {
 		}
 	}
 
-	// Create a session to the ScyllaDB cluster
-	session, err := cluster.CreateSession()
-	if err != nil {
-		return fmt.Errorf("failed to create session: %w", err)
-	}
-
-	s.session = session
+	// Set the cluster configuration to the component
+	s.cluster = cluster
 
 	// Log successful activation
 	log.Printf("ScyllaDB component %s activated successfully", s.id)
-
-	// // Create the keyspace if it does not exist
-	// if s.config.ks != "" {
-	// 	createKeyspaceQuery := fmt.Sprintf(`
-	// 		CREATE KEYSPACE IF NOT EXISTS %s
-	// 		WITH REPLICATION = {'class': '%s', 'replication_factor': %d}
-	// 	`, s.config.ks, s.config.ksClass, s.config.ksReplicationFactor)
-	// 	if err := s.session.Query(createKeyspaceQuery).Exec(); err != nil {
-	// 		return fmt.Errorf("failed to create keyspace: %w", err)
-	// 	}
-	// }
 
 	return nil
 }
 
 func (s *scyllaDbComponent) Stop() error {
-	if s.session != nil {
-		s.session.Close()
-		log.Printf("ScyllaDB component %s stopped", s.id)
-	}
 	return nil
 }
 
-// GetScyllaDb returns the ScyllaDB session
-func (s *scyllaDbComponent) GetSession() *gocql.Session {
-	if s.session == nil {
-		log.Fatal("ScyllaDB session is not initialized")
+// GetCluster returns the ScyllaDB cluster configuration
+func (s *scyllaDbComponent) GetCluster() *gocql.ClusterConfig {
+	return s.cluster
+}
+
+// CreateSession creates a new ScyllaDB session
+func (s *scyllaDbComponent) CreateSession() (*gocql.Session, error) {
+	if s.cluster == nil {
+		return nil, fmt.Errorf("ScyllaDB cluster is not initialized")
 	}
-	return s.session
+
+	// Create a copy of the cluster config to avoid sharing policies between sessions
+	clusterCopy := *s.cluster
+
+	// Set TokenAwareHostPolicy for this session to enhance performance
+	// It routes requests to the replica that is most likely to have the data,
+	// reducing latency and improving throughput.
+	clusterCopy.PoolConfig.HostSelectionPolicy = gocql.TokenAwareHostPolicy(gocql.RoundRobinHostPolicy())
+
+	session, err := clusterCopy.CreateSession()
+	if err != nil {
+		return nil, fmt.Errorf("failed to create ScyllaDB session: %w", err)
+	}
+
+	return session, nil
+}
+
+// CreateSessionWithGoCqlX creates a new ScyllaDB session using gocqlx v3
+func (s *scyllaDbComponent) CreateSessionWithGoCqlX() (*gocqlx.Session, error) {
+	if s.cluster == nil {
+		return nil, fmt.Errorf("ScyllaDB cluster is not initialized")
+	}
+
+	// Create a copy of the cluster config to avoid sharing policies between sessions
+	clusterCopy := *s.cluster
+
+	// Set TokenAwareHostPolicy for this session to enhance performance
+	// It routes requests to the replica that is most likely to have the data,
+	// reducing latency and improving throughput.
+	clusterCopy.PoolConfig.HostSelectionPolicy = gocql.TokenAwareHostPolicy(gocql.RoundRobinHostPolicy())
+
+	session, err := gocqlx.WrapSession(clusterCopy.CreateSession())
+	if err != nil {
+		return nil, fmt.Errorf("failed to create ScyllaDB session with gocqlx v3: %w", err)
+	}
+
+	return &session, nil
 }
