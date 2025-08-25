@@ -1,0 +1,13 @@
+# databases
+database/migrations-backup/
+
+# IDE
+.vscode
+
+# Go binary
+__debug_*
+vendor
+
+
+# env
+.env
