@@ -3,131 +3,102 @@ package cmd
 import (
 	"fmt"
 	"log/slog"
+	"net/http"
 	"os"
-	"time"
 
-	"github.com/gocql/gocql"
+	"github.com/gin-gonic/gin"
 	"github.com/spf13/cobra"
-	"github.com/taimaifika/service-context/component/scylladbc"
-	"github.com/taimaifika/service-context/examples/scylladbcomp/repo"
+	"go.opentelemetry.io/contrib/instrumentation/github.com/gin-gonic/gin/otelgin"
+	"go.opentelemetry.io/otel"
+
+	"github.com/taimaifika/service-context/examples/scylladbcomp/common"
+	"github.com/taimaifika/service-context/examples/scylladbcomp/composer"
 
 	sctx "github.com/taimaifika/service-context"
+	"github.com/taimaifika/service-context/component/ginc"
+	"github.com/taimaifika/service-context/component/ginc/middleware"
+	"github.com/taimaifika/service-context/component/otelc"
+	"github.com/taimaifika/service-context/component/scylladbc"
+	"github.com/taimaifika/service-context/component/slogc"
 )
+
+const serviceName = "simple-clean-architecture"
 
 func newServiceCtx() sctx.ServiceContext {
 	return sctx.NewServiceContext(
-		sctx.WithComponent(scylladbc.NewScyllaDbComponent("scylladb")),
-	)
-}
+		sctx.WithName(serviceName),
+		sctx.WithComponent(slogc.NewSlogComponent()),
+		sctx.WithComponent(otelc.NewOtel(common.KeyCompOtel)),
+		sctx.WithComponent(ginc.NewGin(common.KeyCompGin)),
+		sctx.WithComponent(scylladbc.NewScyllaDbComponent(common.KeyCompScylla)),
 
-type ScyllaDbComponent interface {
-	GetSession() *gocql.Session
+		sctx.WithComponent(NewConfig()),
+	)
 }
 
 var rootCmd = &cobra.Command{
 	Use:   "app",
-	Short: "Start mongodb service",
+	Short: "Start service",
 	Run: func(cmd *cobra.Command, args []string) {
 		serviceCtx := newServiceCtx()
 
 		if err := serviceCtx.Load(); err != nil {
-			slog.Error("load service context error", "error", err)
+			slog.Error("Service context load error", "error", err)
 			panic(err)
 		}
 
-		// Get ScyllaDB component
-		scyllaDbComponent := serviceCtx.MustGet("scylladb").(ScyllaDbComponent)
-		session := scyllaDbComponent.GetSession()
+		// Load Gin component
+		ginComp := serviceCtx.MustGet(common.KeyCompGin).(common.GinComponent)
 
-		if session == nil {
-			slog.Error("failed to get ScyllaDB session")
-			return
-		}
+		router := ginComp.GetRouter()
+		router.Use(
+			middleware.AllowCORS(),
+			otelgin.Middleware(
+				serviceCtx.GetName(),
+				otelgin.WithTracerProvider(otel.GetTracerProvider()),
+				otelgin.WithFilter(func(req *http.Request) bool {
+					// Skip tracing for /ping endpoints
+					return req.URL.Path != "/ping"
+				}),
+			),
+		)
 
-		// New ScyllaDbRepo instance
-		scyllaDbRepo := repo.NewScyllaDbRepo(session)
-		// Example: Create a table
-		if err := scyllaDbRepo.CreateExampleTable(); err != nil {
-			slog.Error("failed to create example table", "error", err)
-			return
-		}
-		slog.Info("Example table created successfully")
+		router.GET("/ping", func(c *gin.Context) {
+			c.JSON(http.StatusOK, gin.H{"message": "pong"})
+		})
 
-		// Example: Insert a user
-		id := gocql.TimeUUID()
-		if err := scyllaDbRepo.InsertUser(id, "John Doe", "john@example.com"); err != nil {
-			slog.Error("failed to insert user", "error", err)
-			return
-		}
-		slog.Info("User inserted successfully", "id", id)
+		// Example routes
+		v1 := router.Group("/v1")
+		exampleRoutes(v1, serviceCtx)
 
-		// Example: Get a user
-		name, email, createdAt, err := scyllaDbRepo.GetUser(id)
-		if err != nil {
-			slog.Error("failed to get user", "error", err)
-			return
+		// Start the server
+		if err := router.Run(fmt.Sprintf(":%d", ginComp.GetPort())); err != nil {
+			slog.Error("Service start error", "error", err)
+			panic(err)
 		}
-		slog.Info("User retrieved successfully", "id", id, "name", name, "email", email, "created_at", createdAt)
-
-		// Example: Get all users
-		users, err := scyllaDbRepo.GetAllUsers()
-		if err != nil {
-			slog.Error("failed to get all users", "error", err)
-			return
-		}
-		slog.Info("All users retrieved successfully", "users", users)
-
-		// Example: Delete a user
-		if err := scyllaDbRepo.DeleteUser(id); err != nil {
-			slog.Error("failed to delete user", "error", err)
-			return
-		}
-		slog.Info("User deleted successfully", "id", id)
-
-		// Example: Update a user
-		if err := scyllaDbRepo.UpdateUser(id, "Jane Doe", "john@example.com"); err != nil {
-			slog.Error("failed to update user", "error", err)
-			return
-		}
-		slog.Info("User updated successfully", "id", id)
-
-		// Example: Count users
-		count, err := scyllaDbRepo.CountUsers()
-		if err != nil {
-			slog.Error("failed to count users", "error", err)
-			return
-		}
-		slog.Info("Total users count", "count", count)
-
-		// Example: Get users with pagination
-		paginatedUsers, err := scyllaDbRepo.GetUsersWithPagination(0, 10)
-		if err != nil {
-			slog.Error("failed to get users with pagination", "error", err)
-			return
-		}
-		slog.Info("Paginated users retrieved successfully", "users", paginatedUsers)
-
-		// Example: Use prepared statements
-		if err := scyllaDbRepo.PreparedInsertUser(); err != nil {
-			slog.Error("failed to use prepared statement for user insertion", "error", err)
-			return
-		}
-		slog.Info("Prepared statement for user insertion executed successfully")
-
-		// Example: Batch insert users
-		usersToInsert := []repo.User{
-			{ID: gocql.TimeUUID(), Name: "Alice", Email: "alice@example.com", CreatedAt: time.Now()},
-			{ID: gocql.TimeUUID(), Name: "Bob", Email: "bob@example.com", CreatedAt: time.Now()},
-		}
-		if err := scyllaDbRepo.BatchInsertUsers(usersToInsert); err != nil {
-			slog.Error("failed to batch insert users", "error", err)
-			return
-		}
-		slog.Info("Batch insert of users executed successfully", "users", usersToInsert)
-
-		// Done with all operations
-		slog.Info("All ScyllaDB operations completed successfully")
 	},
+}
+
+// exampleRoutes is an example of how to define routes (task management)
+func exampleRoutes(router *gin.RouterGroup, serviceCtx sctx.ServiceContext) {
+
+	taskApiService := composer.ComposeTaskApiService(serviceCtx)
+
+	// scylla
+	scyllaTaskHandler := router.Group("/scylla/tasks")
+	{
+		scyllaTaskHandler.GET("", taskApiService.ScyllaListTaskHdl())
+		scyllaTaskHandler.POST("", taskApiService.ScyllaCreateTaskHdl())
+		scyllaTaskHandler.GET("/:task-id", taskApiService.ScyllaGetTaskHdl())
+		scyllaTaskHandler.PATCH("/:task-id", taskApiService.ScyllaUpdateTaskHdl())
+		scyllaTaskHandler.DELETE("/:task-id", taskApiService.ScyllaDeleteTaskHdl())
+	}
+
+	scyllaPersonHandler := router.Group("/scylla/persons")
+	{
+		scyllaPersonHandler.POST("", taskApiService.ScyllaCreatePersonHdl())
+		scyllaPersonHandler.GET("", taskApiService.ScyllaListPersonHdl())
+	}
 }
 
 func Execute() {

@@ -1,0 +1,140 @@
+{
+    "environments": {
+        "development": {
+            "baseUrl": "http://localhost:8080",
+            "timeout": "30s",
+            "expectedResponseTime": 500
+        },
+        "staging": {
+            "baseUrl": "https://staging-api.example.com",
+            "timeout": "60s",
+            "expectedResponseTime": 1000
+        },
+        "production": {
+            "baseUrl": "https://api.example.com",
+            "timeout": "60s",
+            "expectedResponseTime": 200
+        }
+    },
+    "testScenarios": {
+        "smoke": {
+            "description": "Quick smoke test with minimal load",
+            "vus": 1,
+            "duration": "30s",
+            "thresholds": {
+                "http_req_duration": [
+                    "p(95)<1000"
+                ],
+                "errors": [
+                    "rate<0.05"
+                ]
+            }
+        },
+        "load": {
+            "description": "Standard load test",
+            "stages": [
+                {
+                    "duration": "30s",
+                    "target": 5
+                },
+                {
+                    "duration": "1m",
+                    "target": 10
+                },
+                {
+                    "duration": "30s",
+                    "target": 0
+                }
+            ],
+            "thresholds": {
+                "http_req_duration": [
+                    "p(95)<500"
+                ],
+                "errors": [
+                    "rate<0.1"
+                ]
+            }
+        },
+        "stress": {
+            "description": "Stress test with high load",
+            "stages": [
+                {
+                    "duration": "1m",
+                    "target": 10
+                },
+                {
+                    "duration": "2m",
+                    "target": 20
+                },
+                {
+                    "duration": "1m",
+                    "target": 30
+                },
+                {
+                    "duration": "1m",
+                    "target": 0
+                }
+            ],
+            "thresholds": {
+                "http_req_duration": [
+                    "p(95)<1000"
+                ],
+                "errors": [
+                    "rate<0.15"
+                ]
+            }
+        },
+        "spike": {
+            "description": "Spike test with sudden load increase",
+            "stages": [
+                {
+                    "duration": "30s",
+                    "target": 5
+                },
+                {
+                    "duration": "30s",
+                    "target": 30
+                },
+                {
+                    "duration": "1m",
+                    "target": 30
+                },
+                {
+                    "duration": "30s",
+                    "target": 5
+                },
+                {
+                    "duration": "30s",
+                    "target": 0
+                }
+            ],
+            "thresholds": {
+                "http_req_duration": [
+                    "p(95)<2000"
+                ],
+                "errors": [
+                    "rate<0.2"
+                ]
+            }
+        }
+    },
+    "testData": {
+        "tasks": {
+            "validTask": {
+                "title": "K6 Load Test Task",
+                "description": "This is a test task created during k6 load testing",
+                "status": "doing"
+            },
+            "updateTask": {
+                "title": "K6 Updated Load Test Task",
+                "description": "This task has been updated during k6 load testing",
+                "status": "done"
+            },
+            "invalidTask": {
+                "title": "",
+                "description": "Task with invalid data for error testing",
+                "status": "invalid_status"
+            }
+        }
+    }
+}

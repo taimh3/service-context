@@ -1,0 +1,552 @@
+openapi: 3.0.3
+info:
+  title: Golang Clean Architecture API
+  description: |
+    A clean architecture implementation for task and person management using ScyllaDB.
+
+    This API provides endpoints for managing tasks and persons in a ScyllaDB database,
+    following clean architecture principles with proper separation of concerns.
+  version: 1.0.0
+  contact:
+    name: API Support
+    email: support@example.com
+  license:
+    name: MIT
+    url: https://opensource.org/licenses/MIT
+
+servers:
+  - url: http://localhost:3000
+    description: Development server
+
+paths:
+  /ping:
+    get:
+      summary: Health check endpoint
+      description: Simple health check to verify the service is running
+      operationId: ping
+      tags:
+        - Health
+      responses:
+        "200":
+          description: Service is healthy
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+                    example: pong
+
+  /v1/scylla/tasks:
+    get:
+      summary: List tasks
+      description: Retrieve a list of tasks with optional filtering and pagination
+      operationId: listTasks
+      tags:
+        - Tasks
+      parameters:
+        - name: status
+          in: query
+          description: Filter tasks by status
+          required: false
+          schema:
+            type: string
+            enum: [doing, done, deleted]
+            example: doing
+        - name: limit
+          in: query
+          description: Number of items to return (pagination)
+          required: false
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 100
+            default: 10
+            example: 10
+        - name: cursor
+          in: query
+          description: Pagination cursor for next page
+          required: false
+          schema:
+            type: string
+            example: eyJpZCI6MTIzfQ==
+      responses:
+        "200":
+          description: List of tasks retrieved successfully
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/TaskListResponse"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "500":
+          $ref: "#/components/responses/InternalServerError"
+
+    post:
+      summary: Create a new task
+      description: Create a new task in the system
+      operationId: createTask
+      tags:
+        - Tasks
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/TaskCreateRequest"
+      responses:
+        "200":
+          description: Task created successfully
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CreateResponse"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "500":
+          $ref: "#/components/responses/InternalServerError"
+
+  /v1/scylla/tasks/{task-id}:
+    get:
+      summary: Get task by ID
+      description: Retrieve a specific task by its ID
+      operationId: getTask
+      tags:
+        - Tasks
+      parameters:
+        - name: task-id
+          in: path
+          required: true
+          description: The task ID
+          schema:
+            type: string
+            example: "K6FQA8RDak3iNkpjBMi"
+      responses:
+        "200":
+          description: Task retrieved successfully
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/TaskResponse"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "500":
+          $ref: "#/components/responses/InternalServerError"
+
+    patch:
+      summary: Update task
+      description: Update an existing task by its ID
+      operationId: updateTask
+      tags:
+        - Tasks
+      parameters:
+        - name: task-id
+          in: path
+          required: true
+          description: The task ID
+          schema:
+            type: integer
+            format: int64
+            example: 12345
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/TaskUpdateRequest"
+      responses:
+        "200":
+          description: Task updated successfully
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SuccessResponse"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "500":
+          $ref: "#/components/responses/InternalServerError"
+
+    delete:
+      summary: Delete task
+      description: Delete a task by its ID
+      operationId: deleteTask
+      tags:
+        - Tasks
+      parameters:
+        - name: task-id
+          in: path
+          required: true
+          description: The task ID
+          schema:
+            type: integer
+            format: int64
+            example: 12345
+      responses:
+        "200":
+          description: Task deleted successfully
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SuccessResponse"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "500":
+          $ref: "#/components/responses/InternalServerError"
+
+  /v1/scylla/persons:
+    get:
+      summary: List persons
+      description: |
+        Retrieve a list of persons with optional filtering.
+        For efficient ScyllaDB queries, it's recommended to provide at least the first_name parameter
+        since it's the partition key.
+      operationId: listPersons
+      tags:
+        - Persons
+      parameters:
+        - name: first_name
+          in: query
+          description: Filter by first name (partition key - recommended for efficient queries)
+          required: false
+          schema:
+            type: string
+            example: John
+        - name: last_name
+          in: query
+          description: Filter by last name (clustering key - requires first_name)
+          required: false
+          schema:
+            type: string
+            example: Doe
+      responses:
+        "200":
+          description: List of persons retrieved successfully
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PersonListResponse"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "500":
+          $ref: "#/components/responses/InternalServerError"
+
+    post:
+      summary: Create a new person
+      description: Create a new person in the ScyllaDB
+      operationId: createPerson
+      tags:
+        - Persons
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/PersonCreateRequest"
+      responses:
+        "200":
+          description: Person created successfully
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CreateResponse"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "500":
+          $ref: "#/components/responses/InternalServerError"
+
+components:
+  schemas:
+    # Task Schemas
+    Task:
+      type: object
+      properties:
+        id:
+          type: string
+          description: Masked task ID
+          example: "task_123456"
+        title:
+          type: string
+          description: Task title
+          example: "Complete project documentation"
+        description:
+          type: string
+          description: Task description
+          example: "Write comprehensive API documentation"
+        status:
+          type: string
+          enum: [doing, done, deleted]
+          description: Task status
+          example: doing
+        created_at:
+          type: string
+          format: date-time
+          description: Creation timestamp
+          example: "2025-08-23T10:30:00Z"
+        updated_at:
+          type: string
+          format: date-time
+          description: Last update timestamp
+          example: "2025-08-23T15:45:00Z"
+      required:
+        - id
+        - title
+        - status
+
+    TaskCreateRequest:
+      type: object
+      properties:
+        title:
+          type: string
+          description: Task title
+          minLength: 1
+          maxLength: 255
+          example: "Complete project documentation"
+        description:
+          type: string
+          description: Task description
+          maxLength: 1000
+          example: "Write comprehensive API documentation"
+        status:
+          type: string
+          enum: [doing, done, deleted]
+          description: Task status
+          example: doing
+      required:
+        - title
+        - status
+
+    TaskUpdateRequest:
+      type: object
+      properties:
+        title:
+          type: string
+          description: Task title
+          minLength: 1
+          maxLength: 255
+          example: "Updated project documentation"
+        description:
+          type: string
+          description: Task description
+          maxLength: 1000
+          example: "Updated comprehensive API documentation"
+        status:
+          type: string
+          enum: [doing, done, deleted]
+          description: Task status
+          example: done
+      description: All fields are optional for partial updates
+
+    TaskFilter:
+      type: object
+      properties:
+        status:
+          type: string
+          enum: [doing, done, deleted]
+          description: Filter tasks by status
+          example: doing
+
+    # Person Schemas
+    Person:
+      type: object
+      properties:
+        first_name:
+          type: string
+          description: Person's first name (partition key)
+          example: "John"
+        last_name:
+          type: string
+          description: Person's last name (clustering key)
+          example: "Doe"
+        email:
+          type: array
+          items:
+            type: string
+            format: email
+          description: List of email addresses
+          example: ["john.doe@example.com", "john@example.com"]
+      required:
+        - first_name
+        - last_name
+
+    PersonCreateRequest:
+      type: object
+      properties:
+        first_name:
+          type: string
+          description: Person's first name
+          minLength: 1
+          maxLength: 100
+          example: "John"
+        last_name:
+          type: string
+          description: Person's last name
+          minLength: 1
+          maxLength: 100
+          example: "Doe"
+        email:
+          type: array
+          items:
+            type: string
+            format: email
+          description: List of email addresses
+          example: ["john.doe@example.com", "john@example.com"]
+      required:
+        - first_name
+        - last_name
+
+    PersonFilter:
+      type: object
+      properties:
+        first_name:
+          type: string
+          description: Filter by first name (partition key)
+          example: "John"
+        last_name:
+          type: string
+          description: Filter by last name (clustering key)
+          example: "Doe"
+
+    # Response Schemas
+    TaskResponse:
+      type: object
+      properties:
+        data:
+          $ref: "#/components/schemas/Task"
+
+    TaskListResponse:
+      type: object
+      properties:
+        data:
+          type: array
+          items:
+            $ref: "#/components/schemas/Task"
+        paging:
+          $ref: "#/components/schemas/Paging"
+        filter:
+          $ref: "#/components/schemas/TaskFilter"
+
+    PersonListResponse:
+      type: object
+      properties:
+        data:
+          type: array
+          items:
+            $ref: "#/components/schemas/Person"
+        filter:
+          $ref: "#/components/schemas/PersonFilter"
+
+    CreateResponse:
+      type: object
+      properties:
+        data:
+          type: string
+          description: Success message or created resource identifier
+          example: "Person created successfully"
+
+    SuccessResponse:
+      type: object
+      properties:
+        data:
+          type: string
+          description: Success message
+          example: "Operation completed successfully"
+
+    Paging:
+      type: object
+      properties:
+        limit:
+          type: integer
+          description: Number of items per page
+          example: 10
+        cursor:
+          type: string
+          description: Cursor for next page
+          example: "eyJpZCI6MTIzfQ=="
+        has_more:
+          type: boolean
+          description: Whether there are more items available
+          example: true
+
+    # Error Schemas
+    Error:
+      type: object
+      properties:
+        error:
+          type: object
+          properties:
+            code:
+              type: string
+              description: Error code
+              example: "BAD_REQUEST"
+            message:
+              type: string
+              description: Error message
+              example: "Invalid request parameters"
+            details:
+              type: string
+              description: Detailed error information
+              example: "The 'title' field is required and cannot be empty"
+          required:
+            - code
+            - message
+      required:
+        - error
+
+  responses:
+    BadRequest:
+      description: Bad Request - Invalid input parameters
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/Error"
+          example:
+            error:
+              code: "BAD_REQUEST"
+              message: "Invalid request parameters"
+              details: "The 'title' field is required and cannot be empty"
+
+    NotFound:
+      description: Not Found - Resource not found
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/Error"
+          example:
+            error:
+              code: "NOT_FOUND"
+              message: "Resource not found"
+              details: "Task with ID 12345 does not exist"
+
+    InternalServerError:
+      description: Internal Server Error
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/Error"
+          example:
+            error:
+              code: "INTERNAL_SERVER_ERROR"
+              message: "An unexpected error occurred"
+              details: "Database connection failed"
+
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+      description: JWT authentication token
+
+# Global security (can be overridden per operation)
+# security:
+#   - bearerAuth: []
+
+tags:
+  - name: Health
+    description: Health check operations
+  - name: Tasks
+    description: Task management operations
+  - name: Persons
+    description: Person management operations
