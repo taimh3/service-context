@@ -12,6 +12,7 @@ import (
 type config struct {
 	logLevel  string
 	logFormat string
+	addSource bool
 }
 
 type slogComponent struct {
@@ -31,7 +32,7 @@ func NewSlogComponent() *slogComponent {
 	}
 }
 
-func (s slogComponent) SetLogLevel(l string) {
+func (s *slogComponent) SetLogLevel(l string) {
 	switch strings.ToUpper(l) {
 	case slog.LevelInfo.String():
 		s.opts.Level = slog.LevelInfo
@@ -45,7 +46,7 @@ func (s slogComponent) SetLogLevel(l string) {
 }
 
 func (s *slogComponent) SetLogFormat(f string) {
-	if strings.EqualFold(s.logFormat, "text") {
+	if strings.EqualFold(f, "text") {
 		s.handler = slog.NewTextHandler(os.Stdout, s.opts)
 	} else {
 		s.handler = slog.NewJSONHandler(os.Stdout, s.opts)
@@ -57,11 +58,15 @@ func (s *slogComponent) ID() string {
 }
 
 func (s *slogComponent) InitFlags() {
-	flag.StringVar(&s.logLevel, s.id+"-log-level", "debug", "Log level: debug | info | warm | error  . Default: debug")
+	flag.StringVar(&s.logLevel, s.id+"-log-level", "debug", "Log level: debug | info | warn | error  . Default: debug")
 	flag.StringVar(&s.logFormat, s.id+"-log-format", "text", "Log format: json | text . Default: text")
+	flag.BoolVar(&s.addSource, s.id+"-log-source", false, "Log source: true | false . Default: false")
 }
 
 func (s *slogComponent) Activate(_ sctx.ServiceContext) error {
+	// set log source
+	s.opts.AddSource = s.addSource
+
 	// set log level
 	s.SetLogLevel(s.logLevel)
 
