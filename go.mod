@@ -1,6 +1,6 @@
 module github.com/taimaifika/service-context
 
-go 1.24.1
+go 1.26.4
 
 require (
 	github.com/gin-contrib/sse v1.0.0 // indirect
@@ -47,7 +47,7 @@ require (
 	go.opentelemetry.io/otel/sdk v1.37.0
 	go.opentelemetry.io/otel/sdk/log v0.13.0
 	go.opentelemetry.io/otel/sdk/metric v1.37.0
-	go.opentelemetry.io/otel/trace v1.37.0 // indirect
+	go.opentelemetry.io/otel/trace v1.37.0
 	go.opentelemetry.io/proto/otlp v1.7.0 // indirect
 )
 
