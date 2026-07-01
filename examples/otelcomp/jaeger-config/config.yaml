@@ -10,8 +10,12 @@ processors:
 
 exporters:
   debug: {}
-  # otlp:
-  #   endpoint: otelcol:4317
+  otlp/hyperdx:
+    endpoint: hyperdx-all-in-one:4317
+    tls:
+      insecure: true
+    headers:
+      authorization: ${HYPERDX_API_KEY}
   jaeger_storage_exporter:
     trace_storage: memstore
     queue:
@@ -33,12 +37,12 @@ service:
     traces:
       receivers: [otlp]
       processors: [batch]
-      exporters: [debug, jaeger_storage_exporter]
+      exporters: [debug, jaeger_storage_exporter, otlp/hyperdx]
     metrics:
       receivers: [otlp]
       processors: [batch]
-      exporters: [debug]
+      exporters: [debug, otlp/hyperdx]
     logs:
       receivers: [otlp]
       processors: [batch]
-      exporters: [debug]
+      exporters: [debug, otlp/hyperdx]
