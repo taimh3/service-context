@@ -1,8 +1,8 @@
 services:
   jaeger:
-    image: jaegertracing/jaeger:2.6.0
+    image: jaegertracing/jaeger:2.19.0
     container_name: jaeger
-    command: 
+    command:
       - '--config'
       - '/jaeger/config.yaml'
     ports:
@@ -12,5 +12,24 @@ services:
       - "5778:5778"
       - "9411:9411"
     restart: always
+    environment:
+      - HYPERDX_API_KEY=${HYPERDX_API_KEY:-dummy}
     volumes:
       - ./jaeger-config/config.yaml:/jaeger/config.yaml:ro
+
+  hyperdx-all-in-one:
+    image: docker.hyperdx.io/hyperdx/hyperdx-all-in-one:latest
+    container_name: hyperdx-all-in-one
+    restart: unless-stopped
+    ports:
+      - "8080:8080" # HyperDX UI (http://localhost:8080)
+      # - "4317:4317" # OpenTelemetry OTLP/gRPC receiver
+      # - "4318:4318" # OpenTelemetry OTLP/HTTP receiver
+    volumes:
+      - mongo-data:/data/db
+      - clickhouse-data:/var/lib/clickhouse
+
+volumes:
+  mongo-data:
+  clickhouse-data:
+
