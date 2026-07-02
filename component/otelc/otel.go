@@ -220,6 +220,11 @@ func (oc *otelComponent) setupOTelSdk() (shutdown func(context.Context) error, e
 		}
 		shutdownFuncs = append(shutdownFuncs, loggerProvider.Shutdown)
 		global.SetLoggerProvider(loggerProvider)
+
+		if oc.isOtlpProtocolEnabled() {
+			slog.Info("Using OTLP log exporter")
+			slog.SetDefault(slog.New(otelslog.NewHandler(oc.serviceName, otelslog.WithLoggerProvider(loggerProvider))))
+		}
 	}
 	return
 }
@@ -270,23 +275,33 @@ func (oc *otelComponent) newTraceProvider() (*trace.TracerProvider, error) {
 // newOtlpTraceExporter creates a new OTLP trace exporter. (gRPC or HTTP)
 func (oc *otelComponent) newOtlpTraceExporter() (trace.SpanExporter, error) {
 	if oc.exporterOtlpProtocol == OtelProtocolHTTP {
-		return otlptracehttp.New(oc.ctx)
+		return otlptracehttp.New(oc.ctx, otlptracehttp.WithEndpointURL(oc.exporterOtlpEndpoint))
 	}
-	return otlptracegrpc.New(oc.ctx)
+	return otlptracegrpc.New(oc.ctx, otlptracegrpc.WithEndpointURL(oc.exporterOtlpEndpoint))
 }
 
 // newResource creates a new resource with service.name and service.namespace.
 func (oc *otelComponent) newResource() *resource.Resource {
-	res := resource.NewWithAttributes(
-		semconv.SchemaURL,
-		semconv.ServiceNameKey.String(oc.serviceName),
-		semconv.ServiceVersionKey.String(oc.serviceVersion),
-		semconv.DeploymentEnvironmentKey.String(oc.environment),
-		semconv.TelemetrySDKLanguageGo.Key.String(defaultLanguage),
-		semconv.TelemetrySDKVersionKey.String(otel.Version()),
-
-		// Add more attributes here
+	res, err := resource.Merge(
+		resource.Default(),
+		resource.NewWithAttributes(
+			semconv.SchemaURL,
+			semconv.ServiceNameKey.String(oc.serviceName),
+			semconv.ServiceVersionKey.String(oc.serviceVersion),
+			semconv.DeploymentEnvironmentKey.String(oc.environment),
+			semconv.TelemetrySDKLanguageGo.Key.String(defaultLanguage),
+			semconv.TelemetrySDKVersionKey.String(otel.Version()),
+		),
 	)
+	if err != nil {
+		slog.Error("failed to merge resource attributes", slog.Any("error", err))
+		return resource.NewWithAttributes(
+			semconv.SchemaURL,
+			semconv.ServiceNameKey.String(oc.serviceName),
+			semconv.ServiceVersionKey.String(oc.serviceVersion),
+			semconv.DeploymentEnvironmentKey.String(oc.environment),
+		)
+	}
 	return res
 }
 
@@ -309,10 +324,13 @@ func (oc *otelComponent) newMeterProvider() (*metric.MeterProvider, error) {
 		metricExporter = stdoutMetricExporter
 	}
 
+	res := oc.newResource()
+
 	meterProvider := metric.NewMeterProvider(
 		metric.WithReader(metric.NewPeriodicReader(metricExporter,
 			// Default is 1m. Set to 3s for demonstrative purposes.
 			metric.WithInterval(3*time.Second))),
+		metric.WithResource(res),
 	)
 	return meterProvider, nil
 }
@@ -320,9 +338,9 @@ func (oc *otelComponent) newMeterProvider() (*metric.MeterProvider, error) {
 // newOtlpMetricExporter creates a new OTLP metric exporter. (gRPC or HTTP)
 func (oc *otelComponent) newOtlpMetricExporter() (metric.Exporter, error) {
 	if oc.exporterOtlpProtocol == OtelProtocolHTTP {
-		return otlpmetrichttp.New(oc.ctx)
+		return otlpmetrichttp.New(oc.ctx, otlpmetrichttp.WithEndpointURL(oc.exporterOtlpEndpoint))
 	}
-	return otlpmetricgrpc.New(oc.ctx)
+	return otlpmetricgrpc.New(oc.ctx, otlpmetricgrpc.WithEndpointURL(oc.exporterOtlpEndpoint))
 }
 
 // newLoggerProvider creates a new logger provider.
@@ -335,10 +353,6 @@ func (oc *otelComponent) newLoggerProvider() (*log.LoggerProvider, error) {
 			return nil, err
 		}
 		logExporter = otlpLogExporter
-
-		// set default slog
-		slog.Info("Using OTLP log exporter")
-		slog.SetDefault(slog.New(otelslog.NewHandler(oc.serviceName)))
 	} else {
 		// Exporter to stdout
 		stdoutLogExporter, err := stdoutlog.New()
@@ -348,8 +362,11 @@ func (oc *otelComponent) newLoggerProvider() (*log.LoggerProvider, error) {
 		logExporter = stdoutLogExporter
 	}
 
+	res := oc.newResource()
+
 	loggerProvider := log.NewLoggerProvider(
 		log.WithProcessor(log.NewBatchProcessor(logExporter)),
+		log.WithResource(res),
 	)
 
 	return loggerProvider, nil
@@ -358,9 +375,9 @@ func (oc *otelComponent) newLoggerProvider() (*log.LoggerProvider, error) {
 // newOtlpLogExporter creates a new OTLP log exporter. (gRPC or HTTP)
 func (oc *otelComponent) newOtlpLogExporter() (log.Exporter, error) {
 	if oc.exporterOtlpProtocol == OtelProtocolHTTP {
-		return otlploghttp.New(oc.ctx)
+		return otlploghttp.New(oc.ctx, otlploghttp.WithEndpointURL(oc.exporterOtlpEndpoint))
 	}
-	return otlploggrpc.New(oc.ctx)
+	return otlploggrpc.New(oc.ctx, otlploggrpc.WithEndpointURL(oc.exporterOtlpEndpoint))
 }
 
 // IsOtlpProtocolEnabled returns true if the otlp protocol is enabled.
