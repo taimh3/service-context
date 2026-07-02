@@ -262,7 +262,6 @@ func (oc *otelComponent) newTraceProvider() (*trace.TracerProvider, error) {
 			// Default is 5s. Set to 1s for demonstrative purposes.
 			trace.WithBatchTimeout(time.Second)),
 		trace.WithSampler(trace.AlwaysSample()),
-		trace.WithBatcher(traceExporter),
 		trace.WithResource(res),
 	)
 	return traceProvider, nil
