@@ -8,6 +8,7 @@ import (
 
 	"github.com/redis/go-redis/extra/redisotel/v9"
 	"github.com/redis/go-redis/v9"
+	"github.com/redis/go-redis/v9/maintnotifications"
 
 	sctx "github.com/taimaifika/service-context"
 )
@@ -17,7 +18,8 @@ type config struct {
 	username string
 	password string
 
-	disableIdentity bool
+	disableIdentity           bool
+	disableMaintNotifications bool
 
 	// Enable OpenTelemetry instrumentation.
 	isOpenTelemetry bool
@@ -49,11 +51,18 @@ func WithDisableIdentity(disable bool) Option {
 	}
 }
 
+func WithDisableMaintNotifications(disable bool) Option {
+	return func(r *redisComponent) {
+		r.disableMaintNotifications = disable
+	}
+}
+
 func NewRedisComponent(id string, opts ...Option) *redisComponent {
 	r := &redisComponent{
 		id: id,
 		config: &config{
-			disableIdentity: true,
+			disableIdentity:           true,
+			disableMaintNotifications: true,
 		},
 	}
 	for _, opt := range opts {
@@ -85,6 +94,7 @@ func (r *redisComponent) InitFlags() {
 	flag.StringVar(&r.username, r.id+"-username", "", "redis username. default: ''")
 	flag.StringVar(&r.password, r.id+"-password", "", "redis password. default: ''")
 	flag.BoolVar(&r.disableIdentity, r.id+"-disable-identity", true, "disable CLIENT SETINFO command on connection init (for Redis < 7.2). default: true")
+	flag.BoolVar(&r.disableMaintNotifications, r.id+"-disable-maint-notifications", true, "disable CLIENT MAINT_NOTIFICATIONS command on connect. default: true")
 
 	// OpenTelemetry flags
 	flag.BoolVar(&r.isOpenTelemetry, r.id+"-is-otel", false, "enable OpenTelemetry instrumentation. default: false")
@@ -96,6 +106,12 @@ func (r *redisComponent) Activate(ctx sctx.ServiceContext) error {
 	opts := &redis.ClusterOptions{
 		Addrs:           strings.Split(r.url, ","),
 		DisableIdentity: r.disableIdentity,
+	}
+
+	if r.disableMaintNotifications {
+		opts.MaintNotificationsConfig = &maintnotifications.Config{
+			Mode: maintnotifications.ModeDisabled,
+		}
 	}
 
 	// set username and password

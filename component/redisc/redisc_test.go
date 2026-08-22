@@ -8,6 +8,7 @@ func TestNewRedisComponent(t *testing.T) {
 	rc := NewRedisComponent("redis",
 		WithURL("localhost:6379"),
 		WithDisableIdentity(true),
+		WithDisableMaintNotifications(true),
 	)
 
 	if rc.id != "redis" {
@@ -20,5 +21,9 @@ func TestNewRedisComponent(t *testing.T) {
 
 	if !rc.disableIdentity {
 		t.Errorf("expected disableIdentity to be true")
+	}
+
+	if !rc.disableMaintNotifications {
+		t.Errorf("expected disableMaintNotifications to be true")
 	}
 }
