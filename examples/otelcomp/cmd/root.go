@@ -18,7 +18,7 @@ import (
 
 func newServiceCtx() sctx.ServiceContext {
 	return sctx.NewServiceContext(
-		sctx.WithName("otel-component"),
+		sctx.WithName("service-context-otelcomp"),
 		sctx.WithComponent(ginc.NewGin("gin")),
 		sctx.WithComponent(otelc.NewOtel("otel")),
 	)
@@ -44,7 +44,7 @@ var rootCmd = &cobra.Command{
 
 		router := comp.GetRouter()
 
-		router.Use(gin.Recovery(), gin.Logger(), otelgin.Middleware(getHostname()))
+		router.Use(gin.Recovery(), gin.Logger(), otelgin.Middleware(serviceCtx.GetName()))
 
 		router.GET("/ping", func(c *gin.Context) {
 			ctx := c.Request.Context()

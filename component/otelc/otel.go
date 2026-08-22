@@ -5,6 +5,7 @@ import (
 	"errors"
 	"flag"
 	"log/slog"
+	"strings"
 	"time"
 
 	"go.opentelemetry.io/contrib/bridges/otelslog"
@@ -39,7 +40,7 @@ const (
 	defaultOtelEndpointHttp = "http://localhost:4318"
 	defaultOtelEndpointGrpc = "http://localhost:4317"
 	defaultNameService      = ""
-	defaultVersion          = ""
+	defaultVersion          = "1.0.0"
 	defaultOtelProtocol     = OtelProtocolGRPC
 	defaultIsEnabled        = true
 	defaultPrefix           = "otel"
@@ -76,13 +77,55 @@ type otelComponent struct {
 	shutdown func(context.Context) error
 }
 
-func NewOtel(id string) *otelComponent {
-	return &otelComponent{
+type Option func(*otelComponent)
+
+func WithServiceName(name string) Option {
+	return func(oc *otelComponent) {
+		oc.serviceName = name
+	}
+}
+
+func WithServiceVersion(version string) Option {
+	return func(oc *otelComponent) {
+		oc.serviceVersion = version
+	}
+}
+
+func WithEnvironment(env string) Option {
+	return func(oc *otelComponent) {
+		oc.environment = env
+	}
+}
+
+func WithEndpoint(endpoint string) Option {
+	return func(oc *otelComponent) {
+		oc.exporterOtlpEndpoint = endpoint
+	}
+}
+
+func WithProtocol(protocol string) Option {
+	return func(oc *otelComponent) {
+		oc.exporterOtlpProtocol = protocol
+	}
+}
+
+func WithPrefix(prefix string) Option {
+	return func(oc *otelComponent) {
+		oc.prefix = prefix
+	}
+}
+
+func NewOtel(id string, opts ...Option) *otelComponent {
+	oc := &otelComponent{
 		config: new(config),
 		id:     id,
 		ctx:    context.Background(),
 		prefix: defaultPrefix,
 	}
+	for _, opt := range opts {
+		opt(oc)
+	}
+	return oc
 }
 
 func (oc *otelComponent) ID() string {
@@ -119,6 +162,11 @@ func (oc *otelComponent) Activate(sv sctx.ServiceContext) error {
 		return nil
 	}
 
+	// If serviceName is not set from flag/env, fallback to ServiceContext name
+	if oc.serviceName == "" && sv != nil && sv.GetName() != "" {
+		oc.serviceName = sv.GetName()
+	}
+
 	// load config
 	if err := oc.Configure(); err != nil {
 		return err
@@ -148,7 +196,7 @@ func (oc *otelComponent) Configure() error {
 
 	// Check if the serviceVersion is empty
 	if oc.serviceVersion == "" {
-		return errors.New("otel service version is empty")
+		oc.serviceVersion = defaultVersion
 	}
 
 	// Check if the exporterOtlpEndpoint is empty
@@ -158,6 +206,8 @@ func (oc *otelComponent) Configure() error {
 		} else {
 			oc.exporterOtlpEndpoint = defaultOtelEndpointHttp
 		}
+	} else if oc.exporterOtlpEndpoint != OtelPrintToConsole && !strings.HasPrefix(oc.exporterOtlpEndpoint, "http://") && !strings.HasPrefix(oc.exporterOtlpEndpoint, "https://") {
+		oc.exporterOtlpEndpoint = "http://" + oc.exporterOtlpEndpoint
 	}
 
 	return nil
@@ -272,12 +322,45 @@ func (oc *otelComponent) newTraceProvider() (*trace.TracerProvider, error) {
 	return traceProvider, nil
 }
 
+func (oc *otelComponent) getOtlpHTTPEndpointOptions() (endpoint string, insecure bool) {
+	ep := oc.exporterOtlpEndpoint
+	if strings.HasPrefix(ep, "https://") {
+		return strings.TrimSuffix(strings.TrimPrefix(ep, "https://"), "/"), false
+	}
+	if strings.HasPrefix(ep, "http://") {
+		return strings.TrimSuffix(strings.TrimPrefix(ep, "http://"), "/"), true
+	}
+	return strings.TrimSuffix(ep, "/"), strings.Contains(ep, "localhost") || strings.Contains(ep, "127.0.0.1")
+}
+
+func (oc *otelComponent) getOtlpGRPCEndpointOptions() (endpoint string, insecure bool) {
+	ep := oc.exporterOtlpEndpoint
+	if strings.HasPrefix(ep, "https://") {
+		return strings.TrimSuffix(strings.TrimPrefix(ep, "https://"), "/"), false
+	}
+	if strings.HasPrefix(ep, "http://") {
+		return strings.TrimSuffix(strings.TrimPrefix(ep, "http://"), "/"), true
+	}
+	return strings.TrimSuffix(ep, "/"), true
+}
+
 // newOtlpTraceExporter creates a new OTLP trace exporter. (gRPC or HTTP)
 func (oc *otelComponent) newOtlpTraceExporter() (trace.SpanExporter, error) {
 	if oc.exporterOtlpProtocol == OtelProtocolHTTP {
-		return otlptracehttp.New(oc.ctx, otlptracehttp.WithEndpointURL(oc.exporterOtlpEndpoint))
+		host, isInsecure := oc.getOtlpHTTPEndpointOptions()
+		opts := []otlptracehttp.Option{otlptracehttp.WithEndpoint(host)}
+		if isInsecure {
+			opts = append(opts, otlptracehttp.WithInsecure())
+		}
+		return otlptracehttp.New(oc.ctx, opts...)
 	}
-	return otlptracegrpc.New(oc.ctx, otlptracegrpc.WithEndpointURL(oc.exporterOtlpEndpoint))
+
+	host, isInsecure := oc.getOtlpGRPCEndpointOptions()
+	opts := []otlptracegrpc.Option{otlptracegrpc.WithEndpoint(host)}
+	if isInsecure {
+		opts = append(opts, otlptracegrpc.WithInsecure())
+	}
+	return otlptracegrpc.New(oc.ctx, opts...)
 }
 
 // newResource creates a new resource with service.name and service.namespace.
@@ -336,9 +419,20 @@ func (oc *otelComponent) newMeterProvider() (*metric.MeterProvider, error) {
 // newOtlpMetricExporter creates a new OTLP metric exporter. (gRPC or HTTP)
 func (oc *otelComponent) newOtlpMetricExporter() (metric.Exporter, error) {
 	if oc.exporterOtlpProtocol == OtelProtocolHTTP {
-		return otlpmetrichttp.New(oc.ctx, otlpmetrichttp.WithEndpointURL(oc.exporterOtlpEndpoint))
+		host, isInsecure := oc.getOtlpHTTPEndpointOptions()
+		opts := []otlpmetrichttp.Option{otlpmetrichttp.WithEndpoint(host)}
+		if isInsecure {
+			opts = append(opts, otlpmetrichttp.WithInsecure())
+		}
+		return otlpmetrichttp.New(oc.ctx, opts...)
 	}
-	return otlpmetricgrpc.New(oc.ctx, otlpmetricgrpc.WithEndpointURL(oc.exporterOtlpEndpoint))
+
+	host, isInsecure := oc.getOtlpGRPCEndpointOptions()
+	opts := []otlpmetricgrpc.Option{otlpmetricgrpc.WithEndpoint(host)}
+	if isInsecure {
+		opts = append(opts, otlpmetricgrpc.WithInsecure())
+	}
+	return otlpmetricgrpc.New(oc.ctx, opts...)
 }
 
 // newLoggerProvider creates a new logger provider.
@@ -373,9 +467,20 @@ func (oc *otelComponent) newLoggerProvider() (*log.LoggerProvider, error) {
 // newOtlpLogExporter creates a new OTLP log exporter. (gRPC or HTTP)
 func (oc *otelComponent) newOtlpLogExporter() (log.Exporter, error) {
 	if oc.exporterOtlpProtocol == OtelProtocolHTTP {
-		return otlploghttp.New(oc.ctx, otlploghttp.WithEndpointURL(oc.exporterOtlpEndpoint))
+		host, isInsecure := oc.getOtlpHTTPEndpointOptions()
+		opts := []otlploghttp.Option{otlploghttp.WithEndpoint(host)}
+		if isInsecure {
+			opts = append(opts, otlploghttp.WithInsecure())
+		}
+		return otlploghttp.New(oc.ctx, opts...)
 	}
-	return otlploggrpc.New(oc.ctx, otlploggrpc.WithEndpointURL(oc.exporterOtlpEndpoint))
+
+	host, isInsecure := oc.getOtlpGRPCEndpointOptions()
+	opts := []otlploggrpc.Option{otlploggrpc.WithEndpoint(host)}
+	if isInsecure {
+		opts = append(opts, otlploggrpc.WithInsecure())
+	}
+	return otlploggrpc.New(oc.ctx, opts...)
 }
 
 // IsOtlpProtocolEnabled returns true if the otlp protocol is enabled.
