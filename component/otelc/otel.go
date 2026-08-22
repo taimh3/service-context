@@ -284,8 +284,7 @@ func (oc *otelComponent) newOtlpTraceExporter() (trace.SpanExporter, error) {
 func (oc *otelComponent) newResource() *resource.Resource {
 	res, err := resource.Merge(
 		resource.Default(),
-		resource.NewWithAttributes(
-			semconv.SchemaURL,
+		resource.NewSchemaless(
 			semconv.ServiceNameKey.String(oc.serviceName),
 			semconv.ServiceVersionKey.String(oc.serviceVersion),
 			semconv.DeploymentEnvironmentKey.String(oc.environment),
@@ -295,8 +294,7 @@ func (oc *otelComponent) newResource() *resource.Resource {
 	)
 	if err != nil {
 		slog.Error("failed to merge resource attributes", slog.Any("error", err))
-		return resource.NewWithAttributes(
-			semconv.SchemaURL,
+		return resource.NewSchemaless(
 			semconv.ServiceNameKey.String(oc.serviceName),
 			semconv.ServiceVersionKey.String(oc.serviceVersion),
 			semconv.DeploymentEnvironmentKey.String(oc.environment),
