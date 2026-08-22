@@ -2,6 +2,8 @@ module github.com/taimaifika/service-context
 
 go 1.26.4
 
+retract [v1.7.2, v1.7.4] // Please use v1.7.5 or later
+
 require (
 	github.com/gin-contrib/sse v1.1.1 // indirect
 	github.com/gin-gonic/gin v1.12.0
