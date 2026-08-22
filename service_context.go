@@ -64,7 +64,9 @@ func NewServiceContext(opts ...Option) ServiceContext {
 }
 
 func (s *serviceCtx) initFlags() {
-	flag.StringVar(&s.env, "app-env", DevEnv, "Env for service. Ex: dev | stg | prd")
+	if flag.Lookup("app-env") == nil {
+		flag.StringVar(&s.env, "app-env", DevEnv, "Env for service. Ex: dev | stg | prd")
+	}
 
 	for _, c := range s.components {
 		c.InitFlags()

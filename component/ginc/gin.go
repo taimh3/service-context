@@ -54,8 +54,12 @@ func (gs *ginEngine) Stop() error {
 }
 
 func (gs *ginEngine) InitFlags() {
-	flag.IntVar(&gs.Config.port, "gin-port", defaultPort, "gin server port. Default 3000")
-	flag.StringVar(&gs.Config.ginMode, "gin-mode", defaultMode, "gin mode (debug | release). Default debug")
+	if flag.Lookup("gin-port") == nil {
+		flag.IntVar(&gs.Config.port, "gin-port", defaultPort, "gin server port. Default 3000")
+	}
+	if flag.Lookup("gin-mode") == nil {
+		flag.StringVar(&gs.Config.ginMode, "gin-mode", defaultMode, "gin mode (debug | release). Default debug")
+	}
 }
 
 func (gs *ginEngine) GetPort() int {

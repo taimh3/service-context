@@ -88,6 +88,10 @@ func (h *HTTPComponent) MakeRequest(ctx context.Context, method string, reqUrl s
 	ctx, span := otel.Tracer("httpClient").Start(ctx, "MakeRequest")
 	defer span.End()
 
+	if opt == nil {
+		opt = &ReqOption{}
+	}
+
 	if opt.Body != nil {
 		bodyBytes, err := io.ReadAll(opt.Body)
 		if err != nil {
@@ -164,6 +168,10 @@ func (h *HTTPComponent) MakeRequest(ctx context.Context, method string, reqUrl s
 func (h *HTTPComponent) MakeRequestWithProxy(ctx context.Context, method string, reqUrl string, proxy string, opt *ReqOption, output interface{}) (*Response, error) {
 	ctx, span := otel.Tracer("httpClient").Start(ctx, "MakeRequestWithProxy")
 	defer span.End()
+
+	if opt == nil {
+		opt = &ReqOption{}
+	}
 
 	if opt.Body != nil {
 		bodyBytes, err := io.ReadAll(opt.Body)
