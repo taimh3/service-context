@@ -17,6 +17,8 @@ type config struct {
 	username string
 	password string
 
+	disableIdentity bool
+
 	// Enable OpenTelemetry instrumentation.
 	isOpenTelemetry bool
 	// Enable tracing instrumentation.
@@ -33,11 +35,31 @@ type redisComponent struct {
 	redis *redis.ClusterClient
 }
 
-func NewRedisComponent(id string) *redisComponent {
-	return &redisComponent{
-		id:     id,
-		config: new(config),
+type Option func(*redisComponent)
+
+func WithURL(url string) Option {
+	return func(r *redisComponent) {
+		r.url = url
 	}
+}
+
+func WithDisableIdentity(disable bool) Option {
+	return func(r *redisComponent) {
+		r.disableIdentity = disable
+	}
+}
+
+func NewRedisComponent(id string, opts ...Option) *redisComponent {
+	r := &redisComponent{
+		id: id,
+		config: &config{
+			disableIdentity: true,
+		},
+	}
+	for _, opt := range opts {
+		opt(r)
+	}
+	return r
 }
 
 func (r *redisComponent) healthCheck() error {
@@ -62,6 +84,7 @@ func (r *redisComponent) InitFlags() {
 	flag.StringVar(&r.url, r.id+"-url", "localhost-0:6379,localhost-1:6379,localhost-2:6379", "redis urls. default: localhost-0:6379,localhost-1:6379,localhost-2:6379")
 	flag.StringVar(&r.username, r.id+"-username", "", "redis username. default: ''")
 	flag.StringVar(&r.password, r.id+"-password", "", "redis password. default: ''")
+	flag.BoolVar(&r.disableIdentity, r.id+"-disable-identity", true, "disable CLIENT SETINFO command on connection init (for Redis < 7.2). default: true")
 
 	// OpenTelemetry flags
 	flag.BoolVar(&r.isOpenTelemetry, r.id+"-is-otel", false, "enable OpenTelemetry instrumentation. default: false")
@@ -71,7 +94,8 @@ func (r *redisComponent) InitFlags() {
 
 func (r *redisComponent) Activate(ctx sctx.ServiceContext) error {
 	opts := &redis.ClusterOptions{
-		Addrs: strings.Split(r.url, ","),
+		Addrs:           strings.Split(r.url, ","),
+		DisableIdentity: r.disableIdentity,
 	}
 
 	// set username and password
